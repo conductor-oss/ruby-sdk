@@ -17,7 +17,8 @@ module Conductor
       #     tasks_param: '${generate_tasks_ref.output.tasks}',
       #     tasks_input_param_name: '${generate_tasks_ref.output.inputs}'
       #   )
-      def initialize(task_ref_name, tasks_param: 'dynamicTasks', tasks_input_param_name: 'dynamicTasksInputs', join_task: nil)
+      def initialize(task_ref_name, tasks_param: 'dynamicTasks', tasks_input_param_name: 'dynamicTasksInputs',
+                     join_task: nil)
         super(
           task_reference_name: task_ref_name,
           task_type: TaskType::FORK_JOIN_DYNAMIC
@@ -37,9 +38,7 @@ module Conductor
 
         tasks = [workflow_task]
 
-        if @join_task
-          tasks << @join_task.to_workflow_task
-        end
+        tasks << @join_task.to_workflow_task if @join_task
 
         tasks
       end

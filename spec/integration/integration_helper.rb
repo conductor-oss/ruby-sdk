@@ -20,7 +20,7 @@ module IntegrationHelper
   CONDUCTOR_SERVER_URL = ENV.fetch('CONDUCTOR_SERVER_URL', 'http://localhost:7001/api')
 
   # Unique prefix for test resources to avoid collisions
-  TEST_PREFIX = "ruby_sdk_test_#{Time.now.to_i}_#{rand(10_000)}"
+  TEST_PREFIX = "ruby_sdk_test_#{Time.now.to_i}_#{rand(10_000)}".freeze
 
   def self.configuration
     @configuration ||= begin
@@ -29,8 +29,8 @@ module IntegrationHelper
       )
 
       # Configure auth if credentials are provided
-      key_id = ENV['CONDUCTOR_AUTH_KEY']
-      key_secret = ENV['CONDUCTOR_AUTH_SECRET']
+      key_id = ENV.fetch('CONDUCTOR_AUTH_KEY', nil)
+      key_secret = ENV.fetch('CONDUCTOR_AUTH_SECRET', nil)
       if key_id && key_secret
         config.authentication_settings = Conductor::Configuration::AuthenticationSettings.new(
           key_id: key_id,
@@ -57,7 +57,7 @@ module IntegrationHelper
   # Test if the Conductor server is reachable
   def self.server_available?
     require 'net/http'
-    uri = URI.parse(CONDUCTOR_SERVER_URL.sub(%r{/api$}, '') + '/health')
+    uri = URI.parse("#{CONDUCTOR_SERVER_URL.sub(%r{/api$}, '')}/health")
     response = Net::HTTP.get_response(uri)
     response.code == '200'
   rescue StandardError
@@ -121,13 +121,9 @@ RSpec.configure do |config|
 
   # Skip integration tests unless explicitly enabled
   config.before(:each, :integration) do
-    unless ENV['CONDUCTOR_INTEGRATION'] == 'true'
-      skip 'Integration tests disabled. Set CONDUCTOR_INTEGRATION=true to enable.'
-    end
+    skip 'Integration tests disabled. Set CONDUCTOR_INTEGRATION=true to enable.' unless ENV['CONDUCTOR_INTEGRATION'] == 'true'
 
-    unless IntegrationHelper.server_available?
-      skip "Conductor server not available at #{IntegrationHelper::CONDUCTOR_SERVER_URL}"
-    end
+    skip "Conductor server not available at #{IntegrationHelper::CONDUCTOR_SERVER_URL}" unless IntegrationHelper.server_available?
   end
 
   # Run in defined order for integration tests

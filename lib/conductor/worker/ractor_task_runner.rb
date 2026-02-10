@@ -85,7 +85,7 @@ module Conductor
       # Single iteration of the polling loop
       def run_once
         # Adaptive backoff for empty polls
-        if @consecutive_empty_polls > 0
+        if @consecutive_empty_polls.positive?
           backoff_ms = calculate_adaptive_backoff
           elapsed_ms = @last_poll_time ? (Time.now - @last_poll_time) * 1000 : backoff_ms
 
@@ -120,10 +120,12 @@ module Conductor
       def serialize_configuration(config)
         {
           server_api_url: config.server_api_url,
-          authentication_settings: config.authentication_settings ? {
-            key_id: config.authentication_settings.key_id,
-            key_secret: config.authentication_settings.key_secret
-          } : nil
+          authentication_settings: if config.authentication_settings
+                                     {
+                                       key_id: config.authentication_settings.key_id,
+                                       key_secret: config.authentication_settings.key_secret
+                                     }
+                                   end
         }
       end
 
@@ -165,7 +167,7 @@ module Conductor
       # @return [Hash]
       def extract_worker_options
         options = {}
-        Worker::DEFAULTS.keys.each do |key|
+        Worker::DEFAULTS.each_key do |key|
           options[key] = @worker.send(key) if @worker.respond_to?(key)
         end
         options
@@ -184,17 +186,17 @@ module Conductor
         return nil if @worker.paused
 
         # Auth failure backoff
-        if @auth_failures > 0 && @last_auth_failure_time
+        if @auth_failures.positive? && @last_auth_failure_time
           backoff_seconds = [2**@auth_failures, MAX_AUTH_BACKOFF_SECONDS].min
           elapsed = Time.now - @last_auth_failure_time
           return nil if elapsed < backoff_seconds
         end
 
         publish_event(Events::PollStarted.new(
-          task_type: @worker.task_definition_name,
-          worker_id: @worker_id,
-          poll_count: @poll_count
-        ))
+                        task_type: @worker.task_definition_name,
+                        worker_id: @worker_id,
+                        poll_count: @poll_count
+                      ))
 
         start_time = Time.now
 
@@ -215,10 +217,10 @@ module Conductor
           @poll_count += 1
 
           publish_event(Events::PollCompleted.new(
-            task_type: @worker.task_definition_name,
-            duration_ms: duration_ms,
-            tasks_received: tasks.size
-          ))
+                          task_type: @worker.task_definition_name,
+                          duration_ms: duration_ms,
+                          tasks_received: tasks.size
+                        ))
 
           @auth_failures = 0
           tasks.first
@@ -238,10 +240,10 @@ module Conductor
         duration_ms = (Time.now - start_time) * 1000
 
         publish_event(Events::PollFailure.new(
-          task_type: @worker.task_definition_name,
-          duration_ms: duration_ms,
-          cause: error
-        ))
+                        task_type: @worker.task_definition_name,
+                        duration_ms: duration_ms,
+                        cause: error
+                      ))
 
         @logger.warn("[Ractor #{@ractor_id}] Auth failure ##{@auth_failures}: #{error.message}")
       end
@@ -251,10 +253,10 @@ module Conductor
         duration_ms = (Time.now - start_time) * 1000
 
         publish_event(Events::PollFailure.new(
-          task_type: @worker.task_definition_name,
-          duration_ms: duration_ms,
-          cause: error
-        ))
+                        task_type: @worker.task_definition_name,
+                        duration_ms: duration_ms,
+                        cause: error
+                      ))
 
         @logger.error("[Ractor #{@ractor_id}] Poll failed: #{error.message}")
       end
@@ -287,11 +289,11 @@ module Conductor
         start_time = Time.now
 
         publish_event(Events::TaskExecutionStarted.new(
-          task_type: @worker.task_definition_name,
-          task_id: task_obj.task_id,
-          worker_id: @worker_id,
-          workflow_instance_id: task_obj.workflow_instance_id
-        ))
+                        task_type: @worker.task_definition_name,
+                        task_id: task_obj.task_id,
+                        worker_id: @worker_id,
+                        workflow_instance_id: task_obj.workflow_instance_id
+                      ))
 
         begin
           task_result = @worker.execute(task_obj)
@@ -308,22 +310,19 @@ module Conductor
           output_size = calculate_output_size(task_result)
 
           publish_event(Events::TaskExecutionCompleted.new(
-            task_type: @worker.task_definition_name,
-            task_id: task_obj.task_id,
-            worker_id: @worker_id,
-            workflow_instance_id: task_obj.workflow_instance_id,
-            duration_ms: duration_ms,
-            output_size_bytes: output_size
-          ))
+                          task_type: @worker.task_definition_name,
+                          task_id: task_obj.task_id,
+                          worker_id: @worker_id,
+                          workflow_instance_id: task_obj.workflow_instance_id,
+                          duration_ms: duration_ms,
+                          output_size_bytes: output_size
+                        ))
 
           task_result
-
         rescue NonRetryableError => e
           handle_non_retryable_error(task_obj, e, start_time)
-
         rescue StandardError => e
           handle_retryable_error(task_obj, e, start_time)
-
         ensure
           clear_ractor_context
         end
@@ -362,14 +361,14 @@ module Conductor
         task_result.log("NonRetryableError: #{error.class}: #{error.message}")
 
         publish_event(Events::TaskExecutionFailure.new(
-          task_type: @worker.task_definition_name,
-          task_id: task.task_id,
-          worker_id: @worker_id,
-          workflow_instance_id: task.workflow_instance_id,
-          duration_ms: duration_ms,
-          cause: error,
-          is_retryable: false
-        ))
+                        task_type: @worker.task_definition_name,
+                        task_id: task.task_id,
+                        worker_id: @worker_id,
+                        workflow_instance_id: task.workflow_instance_id,
+                        duration_ms: duration_ms,
+                        cause: error,
+                        is_retryable: false
+                      ))
 
         task_result
       end
@@ -385,14 +384,14 @@ module Conductor
         task_result.log("Error: #{error.class}: #{error.message}")
 
         publish_event(Events::TaskExecutionFailure.new(
-          task_type: @worker.task_definition_name,
-          task_id: task.task_id,
-          worker_id: @worker_id,
-          workflow_instance_id: task.workflow_instance_id,
-          duration_ms: duration_ms,
-          cause: error,
-          is_retryable: true
-        ))
+                        task_type: @worker.task_definition_name,
+                        task_id: task.task_id,
+                        worker_id: @worker_id,
+                        workflow_instance_id: task.workflow_instance_id,
+                        duration_ms: duration_ms,
+                        cause: error,
+                        is_retryable: true
+                      ))
 
         task_result
       end
@@ -412,14 +411,14 @@ module Conductor
               @logger.fatal("[Ractor #{@ractor_id}] CRITICAL: Task #{task_result.task_id} result LOST")
 
               publish_event(Events::TaskUpdateFailure.new(
-                task_type: @worker.task_definition_name,
-                task_id: task_result.task_id,
-                worker_id: @worker_id,
-                workflow_instance_id: task_result.workflow_instance_id,
-                cause: e,
-                retry_count: RETRY_BACKOFFS.size,
-                task_result: task_result
-              ))
+                              task_type: @worker.task_definition_name,
+                              task_id: task_result.task_id,
+                              worker_id: @worker_id,
+                              workflow_instance_id: task_result.workflow_instance_id,
+                              cause: e,
+                              retry_count: RETRY_BACKOFFS.size,
+                              task_result: task_result
+                            ))
             end
           end
         end
@@ -428,12 +427,12 @@ module Conductor
       # Publish event - sends to main Ractor if configured, otherwise logs
       # @param event [ConductorEvent] Event to publish
       def publish_event(event)
-        if @event_queue
-          begin
-            @event_queue.send(event)
-          rescue Ractor::ClosedError
-            # Event queue closed, ignore
-          end
+        return unless @event_queue
+
+        begin
+          @event_queue.send(event)
+        rescue Ractor::ClosedError
+          # Event queue closed, ignore
         end
       end
 
@@ -452,7 +451,7 @@ module Conductor
           return @available if defined?(@available)
 
           @available = begin
-            !!(RUBY_VERSION >= '3.1' && defined?(Ractor))
+            RUBY_VERSION >= '3.1' && !defined?(Ractor).nil?
           rescue StandardError
             false
           end

@@ -40,7 +40,8 @@ module Conductor
         @prompt_api.delete_tag_for_prompt_template(prompt_name, tags)
       end
 
-      def test_prompt(prompt_text, variables, ai_integration, text_complete_model, temperature: 0.1, top_p: 0.9, stop_words: nil)
+      def test_prompt(prompt_text, variables, ai_integration, text_complete_model, temperature: 0.1, top_p: 0.9,
+                      stop_words: nil)
         request = Http::Models::PromptTemplateTestRequest.new(
           prompt: prompt_text,
           prompt_variables: variables,

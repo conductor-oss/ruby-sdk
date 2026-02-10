@@ -5,6 +5,9 @@ require 'spec_helper'
 # Conditionally load the Ractor runner
 ractor_runner_loaded = begin
   require_relative '../../../lib/conductor/worker/ractor_task_runner'
+  # Reset the memoized availability immediately after loading
+  # to ensure clean state for tests
+  Conductor::Worker::RactorSupport.remove_instance_variable(:@available) if Conductor::Worker::RactorSupport.instance_variable_defined?(:@available)
   true
 rescue LoadError
   false
@@ -47,6 +50,11 @@ RSpec.describe 'RactorTaskRunner', if: RUBY_VERSION >= '3.1' && ractor_runner_lo
   end
 
   describe Conductor::Worker::RactorSupport do
+    before do
+      # Reset the memoized availability check before each test
+      described_class.remove_instance_variable(:@available) if described_class.instance_variable_defined?(:@available)
+    end
+
     describe '.available?' do
       it 'returns true on Ruby 3.1+' do
         expect(described_class.available?).to be true
@@ -64,6 +72,11 @@ end
 # Test RactorSupport on older Ruby versions
 RSpec.describe 'RactorSupport (Ruby < 3.1)', if: RUBY_VERSION < '3.1' && ractor_runner_loaded do
   describe Conductor::Worker::RactorSupport do
+    before do
+      # Reset the memoized availability check before each test
+      described_class.remove_instance_variable(:@available) if described_class.instance_variable_defined?(:@available)
+    end
+
     describe '.available?' do
       it 'returns false on older Ruby versions' do
         expect(described_class.available?).to be false

@@ -24,18 +24,18 @@ def create_http_poll_workflow(workflow_client, workflow_executor)
 
   # HTTP Poll task - polls until condition is met
   poll_task = HttpPollTask.new('poll_status', {
-    'uri' => 'https://httpbin.org/json',
-    'method' => 'GET',
-    'connectionTimeOut' => 5000,
-    'readTimeOut' => 5000
-  })
+                                 'uri' => 'https://httpbin.org/json',
+                                 'method' => 'GET',
+                                 'connectionTimeOut' => 5000,
+                                 'readTimeOut' => 5000
+                               })
   poll_task.input('terminalCondition', '$.slideshow != null')
   poll_task.input('pollingInterval', 2)
   poll_task.input('pollingStrategy', 'FIXED')
 
   # Process the result
   process = SimpleTask.new('process_result', 'process_ref')
-    .input('data', poll_task.output('response'))
+                      .input('data', poll_task.output('response'))
 
   workflow >> poll_task >> process
   workflow.output_parameter('result', process.output)

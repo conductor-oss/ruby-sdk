@@ -40,12 +40,14 @@ module Conductor
 
         # Get a role by name
         def get_role(name)
-          @api_client.call_api('/roles/{name}', 'GET', path_params: { name: name }, return_type: 'Object', return_http_data_only: true)
+          @api_client.call_api('/roles/{name}', 'GET', path_params: { name: name }, return_type: 'Object',
+                                                       return_http_data_only: true)
         end
 
         # Update a role
         def update_role(name, body)
-          @api_client.call_api('/roles/{name}', 'PUT', path_params: { name: name }, body: body, return_type: 'Object', return_http_data_only: true)
+          @api_client.call_api('/roles/{name}', 'PUT', path_params: { name: name }, body: body, return_type: 'Object',
+                                                       return_http_data_only: true)
         end
 
         # Delete a role

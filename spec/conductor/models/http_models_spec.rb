@@ -105,11 +105,11 @@ RSpec.describe Conductor::Http::Models::AuthorizationRequest do
   it 'creates with subject, target, and access' do
     subject = Conductor::Http::Models::SubjectRef.new(type: 'USER', id: 'u1')
     target = Conductor::Http::Models::TargetRef.new(type: 'WORKFLOW_DEF', id: 'wf1')
-    req = described_class.new(subject: subject, target: target, access: ['READ', 'EXECUTE'])
+    req = described_class.new(subject: subject, target: target, access: %w[READ EXECUTE])
 
     expect(req.subject).to eq(subject)
     expect(req.target).to eq(target)
-    expect(req.access).to eq(['READ', 'EXECUTE'])
+    expect(req.access).to eq(%w[READ EXECUTE])
   end
 
   it 'serializes nested models' do

@@ -44,7 +44,7 @@ module Conductor
         @workers = []
         @threads = []
         @runners = []
-        @ractors = []  # For Ractor-based workers
+        @ractors = [] # For Ractor-based workers
         @running = false
         @mutex = Mutex.new
         @register_task_definitions = register_task_definitions
@@ -210,7 +210,7 @@ module Conductor
 
         Thread.new do
           Thread.current.name = "conductor-event-receiver-#{task_name}"
-          # Note: In production, this would need proper Ractor communication
+          # NOTE: In production, this would need proper Ractor communication
           # For now, events from Ractors are logged but not dispatched
           # due to Ractor isolation constraints
           logger.debug("Event receiver started for #{task_name}")
@@ -237,7 +237,7 @@ module Conductor
         @mutex.synchronize do
           return self unless @running
 
-          @logger.info("Stopping TaskHandler...")
+          @logger.info('Stopping TaskHandler...')
 
           # Signal all runners to shutdown
           @runners.each(&:shutdown)
@@ -250,13 +250,11 @@ module Conductor
 
           # Shutdown Ractors
           @ractors.each do |ractor|
-            begin
-              # Ractors don't have a clean shutdown mechanism
-              # They'll be GC'd when no longer referenced
-              ractor.take if ractor.respond_to?(:take)
-            rescue Ractor::ClosedError, Ractor::RemoteError
-              # Ractor already finished
-            end
+            # Ractors don't have a clean shutdown mechanism
+            # They'll be GC'd when no longer referenced
+            ractor.take if ractor.respond_to?(:take)
+          rescue Ractor::ClosedError, Ractor::RemoteError
+            # Ractor already finished
           end
 
           @runners.clear
@@ -264,7 +262,7 @@ module Conductor
           @ractors.clear
           @running = false
 
-          @logger.info("TaskHandler stopped")
+          @logger.info('TaskHandler stopped')
         end
 
         self
@@ -326,15 +324,9 @@ module Conductor
       # @param modules [Array<String>] File paths or module names to require
       def import_worker_modules(modules)
         modules.each do |mod|
-          begin
-            if File.exist?(mod)
-              require mod
-            else
-              require mod
-            end
-          rescue LoadError => e
-            @logger.warn("Failed to load module '#{mod}': #{e.message}")
-          end
+          require mod
+        rescue LoadError => e
+          @logger.warn("Failed to load module '#{mod}': #{e.message}")
         end
       end
 

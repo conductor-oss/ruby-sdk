@@ -167,11 +167,11 @@ RSpec.describe Conductor::Worker::Events do
 
       # Publish events
       dispatcher.publish(Conductor::Worker::Events::PollStarted.new(
-        task_type: 'test', worker_id: 'w1', poll_count: 0
-      ))
+                           task_type: 'test', worker_id: 'w1', poll_count: 0
+                         ))
       dispatcher.publish(Conductor::Worker::Events::PollCompleted.new(
-        task_type: 'test', duration_ms: 10, tasks_received: 1
-      ))
+                           task_type: 'test', duration_ms: 10, tasks_received: 1
+                         ))
 
       expect(events_received.size).to eq(2)
       expect(events_received[0][0]).to eq(:poll_started)

@@ -25,15 +25,13 @@ module Conductor
         return false unless worker.register_task_def
 
         task_def = build_task_definition(worker)
-        
+
         # Generate schemas if worker has typed parameters
         input_schema = generate_input_schema(worker)
         output_schema = generate_output_schema(worker)
 
         # Register schemas if available
-        if input_schema || output_schema
-          register_schemas(worker.task_definition_name, input_schema, output_schema)
-        end
+        register_schemas(worker.task_definition_name, input_schema, output_schema) if input_schema || output_schema
 
         # Register or update task definition
         if worker.overwrite_task_def
@@ -58,7 +56,7 @@ module Conductor
         task_def = worker.task_def_template&.dup || Http::Models::TaskDef.new
 
         task_def.name = worker.task_definition_name
-        
+
         # Set reasonable defaults if not provided
         task_def.retry_count ||= 3
         task_def.retry_logic ||= Http::Models::TaskDef::RetryLogic::FIXED
@@ -80,16 +78,16 @@ module Conductor
 
         # Skip if first param is a positional arg (takes full Task object)
         first_type = params.first&.first
-        return nil if [:req, :opt, :rest].include?(first_type)
+        return nil if %i[req opt rest].include?(first_type)
 
         properties = {}
         required = []
 
         params.each do |type, name|
           next unless name
-          
+
           prop_name = name.to_s
-          
+
           case type
           when :keyreq # Required keyword argument
             properties[prop_name] = infer_property_schema(name)
@@ -175,9 +173,9 @@ module Conductor
       # @param input_schema [Hash, nil] Input schema
       # @param output_schema [Hash, nil] Output schema
       def register_schemas(task_name, input_schema, output_schema)
-        # Note: Schema registration requires Orkes Conductor
+        # NOTE: Schema registration requires Orkes Conductor
         # OSS Conductor may not have this endpoint
-        
+
         if input_schema
           begin
             register_schema("#{task_name}_input", input_schema)
@@ -186,19 +184,19 @@ module Conductor
           end
         end
 
-        if output_schema
-          begin
-            register_schema("#{task_name}_output", output_schema)
-          rescue ApiError => e
-            @logger.debug("Schema registration not available: #{e.message}") if e.status == 404
-          end
+        return unless output_schema
+
+        begin
+          register_schema("#{task_name}_output", output_schema)
+        rescue ApiError => e
+          @logger.debug("Schema registration not available: #{e.message}") if e.status == 404
         end
       end
 
       # Register a single schema
       # @param name [String] Schema name
       # @param schema [Hash] JSON Schema
-      def register_schema(name, schema)
+      def register_schema(name, _schema)
         # This would call the schema API if available
         # For now, just log
         @logger.debug("Would register schema: #{name}")
@@ -207,32 +205,24 @@ module Conductor
       # Register task def, update if already exists
       # @param task_def [TaskDef]
       def register_or_update_task_def(task_def)
-        begin
-          @metadata_client.update_task_def(task_def)
-        rescue ApiError => e
-          if e.status == 404
-            # Task def doesn't exist, create it
-            @metadata_client.register_task_def([task_def])
-          else
-            raise
-          end
-        end
+        @metadata_client.update_task_def(task_def)
+      rescue ApiError => e
+        raise unless e.status == 404
+
+        # Task def doesn't exist, create it
+        @metadata_client.register_task_def([task_def])
       end
 
       # Register task def only if it doesn't exist
       # @param task_def [TaskDef]
       def register_if_not_exists(task_def)
-        begin
-          existing = @metadata_client.get_task_def(task_def.name)
-          @logger.info("Task definition '#{task_def.name}' already exists, skipping")
-        rescue ApiError => e
-          if e.status == 404
-            # Task def doesn't exist, create it
-            @metadata_client.register_task_def([task_def])
-          else
-            raise
-          end
-        end
+        existing = @metadata_client.get_task_def(task_def.name)
+        @logger.info("Task definition '#{task_def.name}' already exists, skipping")
+      rescue ApiError => e
+        raise unless e.status == 404
+
+        # Task def doesn't exist, create it
+        @metadata_client.register_task_def([task_def])
       end
     end
 

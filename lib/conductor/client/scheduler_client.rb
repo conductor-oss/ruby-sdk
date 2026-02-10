@@ -78,7 +78,8 @@ module Conductor
       # @param [Integer] schedule_end_time End time (epoch ms, optional)
       # @param [Integer] limit Number of times to return (optional)
       # @return [Array<Integer>]
-      def get_next_few_schedule_execution_times(cron_expression, schedule_start_time: nil, schedule_end_time: nil, limit: nil)
+      def get_next_few_schedule_execution_times(cron_expression, schedule_start_time: nil, schedule_end_time: nil,
+                                                limit: nil)
         @scheduler_api.get_next_few_schedules(
           cron_expression,
           schedule_start_time: schedule_start_time,

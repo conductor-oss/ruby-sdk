@@ -93,9 +93,7 @@ module Conductor
       return auth_settings if auth_settings
 
       # Try explicit parameters first
-      if auth_key && auth_secret
-        return AuthenticationSettings.new(key_id: auth_key, key_secret: auth_secret)
-      end
+      return AuthenticationSettings.new(key_id: auth_key, key_secret: auth_secret) if auth_key && auth_secret
 
       # Try environment variables
       settings = AuthenticationSettings.new

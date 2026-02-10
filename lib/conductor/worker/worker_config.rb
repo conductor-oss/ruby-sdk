@@ -37,13 +37,13 @@ module Conductor
             # Try to get from environment variables (3-tier hierarchy)
             env_value = get_env_value(worker_name, property)
 
-            if env_value
-              result[property] = convert_value(env_value, config[:type])
-            elsif defaults.key?(property)
-              result[property] = defaults[property]
-            else
-              result[property] = config[:default]
-            end
+            result[property] = if env_value
+                                 convert_value(env_value, config[:type])
+                               elsif defaults.key?(property)
+                                 defaults[property]
+                               else
+                                 config[:default]
+                               end
           end
 
           # Auto-generate worker_id if not set
@@ -55,7 +55,11 @@ module Conductor
         # Generate a unique worker ID
         # @return [String]
         def generate_worker_id
-          hostname = Socket.gethostname rescue 'unknown'
+          hostname = begin
+            Socket.gethostname
+          rescue StandardError
+            'unknown'
+          end
           pid = Process.pid
           thread_id = Thread.current.object_id.to_s(16)
           "#{hostname}-#{pid}-#{thread_id}"
@@ -73,30 +77,30 @@ module Conductor
 
           # Priority 1: Worker-specific env vars
           # conductor.worker.{task_name}.{property} (dotted format)
-          value = ENV["conductor.worker.#{worker_name}.#{property_str}"]
+          value = ENV.fetch("conductor.worker.#{worker_name}.#{property_str}", nil)
           return value if value
 
           # CONDUCTOR_WORKER_{TASK_NAME}_{PROPERTY} (uppercase format)
-          value = ENV["CONDUCTOR_WORKER_#{worker_name_normalized}_#{property_str.upcase}"]
+          value = ENV.fetch("CONDUCTOR_WORKER_#{worker_name_normalized}_#{property_str.upcase}", nil)
           return value if value
 
           # Priority 2: Global worker env vars
           # conductor.worker.all.{property} (dotted format)
-          value = ENV["conductor.worker.all.#{property_str}"]
+          value = ENV.fetch("conductor.worker.all.#{property_str}", nil)
           return value if value
 
           # CONDUCTOR_WORKER_ALL_{PROPERTY} (uppercase format)
-          value = ENV["CONDUCTOR_WORKER_ALL_#{property_str.upcase}"]
+          value = ENV.fetch("CONDUCTOR_WORKER_ALL_#{property_str.upcase}", nil)
           return value if value
 
           # Priority 3: Legacy format
           # CONDUCTOR_WORKER_{PROPERTY} (old global format)
-          value = ENV["CONDUCTOR_WORKER_#{property_str.upcase}"]
+          value = ENV.fetch("CONDUCTOR_WORKER_#{property_str.upcase}", nil)
           return value if value
 
           # Special backward compatibility for poll_interval
           if property == :poll_interval
-            value = ENV['POLLING_INTERVAL']
+            value = ENV.fetch('POLLING_INTERVAL', nil)
             return value if value
           end
 

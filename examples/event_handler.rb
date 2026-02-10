@@ -69,7 +69,6 @@ def main
     rescue StandardError => e
       puts "  Could not fetch: #{e.message}"
     end
-
   ensure
     # Cleanup
     puts "\nDeleting event handler..."

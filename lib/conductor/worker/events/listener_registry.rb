@@ -26,9 +26,7 @@ module Conductor
         # @return [void]
         def self.register_task_runner_listener(listener, dispatcher)
           EVENT_METHOD_MAP.each do |event_class, method_name|
-            if listener.respond_to?(method_name)
-              dispatcher.register(event_class, ->(event) { listener.send(method_name, event) })
-            end
+            dispatcher.register(event_class, ->(event) { listener.send(method_name, event) }) if listener.respond_to?(method_name)
           end
         end
 

@@ -43,12 +43,10 @@ module Conductor
           listeners = @mutex.synchronize { @listeners[event.class].dup }
 
           listeners.each do |listener|
-            begin
-              listener.call(event)
-            rescue StandardError => e
-              # Listener failure is isolated - never breaks the worker
-              warn "[Conductor] Event listener error for #{event.class}: #{e.message}"
-            end
+            listener.call(event)
+          rescue StandardError => e
+            # Listener failure is isolated - never breaks the worker
+            warn "[Conductor] Event listener error for #{event.class}: #{e.message}"
           end
 
           self

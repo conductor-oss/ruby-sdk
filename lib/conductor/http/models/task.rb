@@ -119,9 +119,7 @@ module Conductor
 
           # Set all attributes from the hash
           SWAGGER_TYPES.each_key do |key|
-            if attributes.key?(key)
-              self.send("#{key}=", attributes[key])
-            end
+            send("#{key}=", attributes[key]) if attributes.key?(key)
           end
 
           # Set default values for collections

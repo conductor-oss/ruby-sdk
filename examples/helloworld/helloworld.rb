@@ -34,7 +34,7 @@ def greetings_workflow(workflow_executor, workflow_client)
 
   # Create greet task that uses workflow input
   greet = SimpleTask.new('greet', 'greet_ref')
-    .input('name', workflow.input('name'))
+                    .input('name', workflow.input('name'))
 
   # Add task to workflow
   workflow >> greet

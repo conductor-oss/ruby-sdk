@@ -46,7 +46,11 @@ begin
   # Get workflow status
   puts "\n[Example 2] Getting workflow status..."
   workflow = workflow_client.get_workflow(workflow_id)
-  puts "  ✓ Workflow status: #{workflow['status'] rescue 'N/A'}"
+  puts "  ✓ Workflow status: #{begin
+    workflow['status']
+  rescue StandardError
+    'N/A'
+  end}"
 rescue Conductor::ApiError => e
   puts "  ✗ Error: #{e.message}"
   puts "  Note: Make sure the workflow 'my_workflow' is registered in Conductor"
@@ -80,6 +84,6 @@ puts "  All statuses: #{Conductor::Http::Models::WorkflowStatusConstants::ALL.jo
 puts "  Running? #{Conductor::Http::Models::WorkflowStatusConstants.running?('RUNNING')}"
 puts "  Terminal? #{Conductor::Http::Models::WorkflowStatusConstants.terminal?('COMPLETED')}"
 
-puts "\n" + '=' * 60
+puts "\n#{'=' * 60}"
 puts 'Example completed!'
 puts '=' * 60

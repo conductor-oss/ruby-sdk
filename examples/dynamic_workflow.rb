@@ -122,13 +122,13 @@ def main
   # Define tasks
   # Task 1: Get user email - uses workflow input for userid
   get_email = SimpleTask.new('get_user_email', 'get_user_email_ref')
-    .input('userid', workflow.input('userid'))
+                        .input('userid', workflow.input('userid'))
 
   # Task 2: Send email - uses output from get_email task
   sendmail = SimpleTask.new('send_email', 'send_email_ref')
-    .input('email', get_email.output('result'))
-    .input('subject', 'Hello from Conductor Ruby SDK')
-    .input('body', 'This is a test email from a dynamic workflow')
+                       .input('email', get_email.output('result'))
+                       .input('subject', 'Hello from Conductor Ruby SDK')
+                       .input('body', 'This is a test email from a dynamic workflow')
 
   # Chain tasks: workflow >> task1 >> task2
   workflow >> get_email >> sendmail

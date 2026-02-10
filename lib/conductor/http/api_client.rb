@@ -66,7 +66,7 @@ module Conductor
         if e.token_expired? || e.invalid_token?
           token_status = e.token_expired? ? 'expired' : 'invalid'
           logger.info("Authentication token is #{token_status}, renewing token... (request: #{method} #{resource_path})")
-          
+
           if force_refresh_auth_token
             logger.debug('Authentication token successfully renewed')
             # Retry the request once after successful token refresh
@@ -89,8 +89,8 @@ module Conductor
         when Array
           obj.map { |item| sanitize_for_serialization(item) }
         when Hash
-          obj.each_with_object({}) do |(key, val), hash|
-            hash[key] = sanitize_for_serialization(val)
+          obj.transform_values do |val|
+            sanitize_for_serialization(val)
           end
         when DateTime, Date, Time
           obj.iso8601
@@ -99,11 +99,11 @@ module Conductor
           if obj.class.const_defined?(:ATTRIBUTE_MAP) && obj.class.const_defined?(:SWAGGER_TYPES)
             attr_map = obj.class.const_get(:ATTRIBUTE_MAP)
             swagger_types = obj.class.const_get(:SWAGGER_TYPES)
-            
+
             swagger_types.each_with_object({}) do |(attr, _type), hash|
               value = obj.send(attr)
               next if value.nil?
-              
+
               json_key = attr_map[attr]
               hash[json_key] = sanitize_for_serialization(value)
             end
@@ -121,14 +121,13 @@ module Conductor
       # @return [Object] Deserialized object
       def deserialize(response, return_type)
         return nil if response.nil? || return_type.nil?
+
         body = response.body
         return nil if body.nil? || body.empty?
 
         # For String return type, return the raw body directly
         # (many Conductor APIs return plain text, e.g. workflow ID)
-        if return_type == 'String'
-          return body.to_s.strip.delete_prefix('"').delete_suffix('"')
-        end
+        return body.to_s.strip.delete_prefix('"').delete_suffix('"') if return_type == 'String'
 
         # Parse response body as JSON for complex types
         data = response.json
@@ -295,7 +294,7 @@ module Conductor
           end
 
           logger.debug('Requesting new authentication token from server')
-          
+
           response = call_api_no_retry(
             '/token',
             'POST',
@@ -308,7 +307,6 @@ module Conductor
           # Success - reset failure counter
           @token_refresh_failures = 0
           response.token
-
         rescue AuthorizationError => e
           # 401 from /token endpoint - invalid credentials
           @token_refresh_failures += 1
@@ -319,7 +317,6 @@ module Conductor
             "Will retry with exponential backoff (#{2**@token_refresh_failures}s)."
           )
           nil
-
         rescue ApiError => e
           # Check if it's a 404 - indicates no authentication endpoint (Conductor OSS)
           if e.not_found?
@@ -331,7 +328,6 @@ module Conductor
             @configuration.disable_auth!
             # Reset failure counter since this is not a failure
             @token_refresh_failures = 0
-            nil
           else
             # Other API errors
             @token_refresh_failures += 1
@@ -339,9 +335,8 @@ module Conductor
               "API error when getting token (attempt #{@token_refresh_failures}): " \
               "#{e.status} - #{e.reason}"
             )
-            nil
           end
-
+          nil
         rescue StandardError => e
           # Other errors (network, etc)
           @token_refresh_failures += 1

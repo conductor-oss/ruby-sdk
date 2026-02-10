@@ -96,7 +96,7 @@ def main
     puts "A: #{result.output['response']}"
   end
 
-  puts "\n" + '=' * 70
+  puts "\n#{'=' * 70}"
   puts 'Chat workflow demo complete!'
 end
 

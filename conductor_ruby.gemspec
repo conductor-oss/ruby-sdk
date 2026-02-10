@@ -12,7 +12,7 @@ Gem::Specification.new do |spec|
   spec.description   = 'Official Ruby SDK for Conductor OSS - a durable workflow orchestration engine'
   spec.homepage      = 'https://github.com/conductor-oss/ruby-sdk'
   spec.license       = 'Apache-2.0'
-  spec.required_ruby_version = '>= 2.6.0'
+  spec.required_ruby_version = '>= 3.0.0'
 
   spec.metadata['homepage_uri'] = spec.homepage
   spec.metadata['source_code_uri'] = 'https://github.com/conductor-oss/ruby-sdk'
@@ -40,11 +40,12 @@ Gem::Specification.new do |spec|
   # JSON handling
   spec.add_dependency 'json', '>= 2.0'
 
-  # Development dependencies
+  # Development dependencies (alphabetically sorted)
+  spec.add_development_dependency 'pry', '~> 0.14'
+  spec.add_development_dependency 'rake', '~> 13.0'
   spec.add_development_dependency 'rspec', '~> 3.0'
-  spec.add_development_dependency 'webmock', '~> 3.0'
-  spec.add_development_dependency 'vcr', '~> 6.0'
   spec.add_development_dependency 'rubocop', '~> 1.0'
   spec.add_development_dependency 'rubocop-rspec', '~> 2.0'
-  spec.add_development_dependency 'pry', '~> 0.14'
+  spec.add_development_dependency 'vcr', '~> 6.0'
+  spec.add_development_dependency 'webmock', '~> 3.0'
 end

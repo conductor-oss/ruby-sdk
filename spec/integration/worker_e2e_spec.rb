@@ -81,9 +81,7 @@ RSpec.describe 'Worker E2E Integration', :integration do
       end
 
       worker3 = Conductor::Worker::Worker.new(task3_name, poll_interval: 100, thread_count: 1) do |task|
-        if task.input_data['should_fail'] == true
-          raise Conductor::NonRetryableError, 'Intentional failure'
-        end
+        raise Conductor::NonRetryableError, 'Intentional failure' if task.input_data['should_fail'] == true
 
         { 'worker' => 'conditional_worker', 'status' => 'ok' }
       end
@@ -145,7 +143,6 @@ RSpec.describe 'Worker E2E Integration', :integration do
         exec_events = events_collected.select { |e| e.is_a?(Conductor::Worker::Events::TaskExecutionCompleted) }
         expect(poll_events.length).to be > 0
         expect(exec_events.length).to eq(3)
-
       ensure
         handler.stop(timeout: 5)
       end

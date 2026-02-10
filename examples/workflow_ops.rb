@@ -57,8 +57,8 @@ def start_demo_workflow(workflow_executor, workflow_client)
 
   # HTTP call
   http_call = HttpTask.new('call_remote_api', {
-    'uri' => 'https://orkes-api-tester.orkesconductor.com/api'
-  })
+                             'uri' => 'https://orkes-api-tester.orkesconductor.com/api'
+                           })
 
   # Build workflow
   workflow >> wait_for_two_sec >> wait_for_signal >> http_call

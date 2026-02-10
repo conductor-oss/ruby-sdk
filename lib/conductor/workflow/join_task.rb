@@ -18,10 +18,10 @@ module Conductor
         )
         @join_on = join_on&.dup
 
-        if join_on_script
-          @evaluator_type = 'js'
-          @expression = join_on_script
-        end
+        return unless join_on_script
+
+        @evaluator_type = 'js'
+        @expression = join_on_script
       end
 
       # Convert to WorkflowTask

@@ -39,7 +39,8 @@ module Conductor
 
         # Get a prompt template
         def get_prompt(name)
-          @api_client.call_api('/prompts/{name}', 'GET', path_params: { name: name }, return_type: 'PromptTemplate', return_http_data_only: true)
+          @api_client.call_api('/prompts/{name}', 'GET', path_params: { name: name }, return_type: 'PromptTemplate',
+                                                         return_http_data_only: true)
         end
 
         # Get all prompt templates
@@ -54,17 +55,20 @@ module Conductor
 
         # Get tags for a prompt template
         def get_tags_for_prompt_template(name)
-          @api_client.call_api('/prompts/{name}/tags', 'GET', path_params: { name: name }, return_type: 'Array<TagObject>', return_http_data_only: true)
+          @api_client.call_api('/prompts/{name}/tags', 'GET', path_params: { name: name },
+                                                              return_type: 'Array<TagObject>', return_http_data_only: true)
         end
 
         # Update tags for a prompt template
         def update_tag_for_prompt_template(name, tags)
-          @api_client.call_api('/prompts/{name}/tags', 'PUT', path_params: { name: name }, body: tags, return_http_data_only: true)
+          @api_client.call_api('/prompts/{name}/tags', 'PUT', path_params: { name: name }, body: tags,
+                                                              return_http_data_only: true)
         end
 
         # Delete tags for a prompt template
         def delete_tag_for_prompt_template(name, tags)
-          @api_client.call_api('/prompts/{name}/tags', 'DELETE', path_params: { name: name }, body: tags, return_http_data_only: true)
+          @api_client.call_api('/prompts/{name}/tags', 'DELETE', path_params: { name: name }, body: tags,
+                                                                 return_http_data_only: true)
         end
 
         # Test a prompt template

@@ -188,7 +188,8 @@ module Conductor
       # @param [Boolean] include_tasks Include task details (default: false)
       # @return [Hash<String, Array<Workflow>>]
       def get_by_correlation_ids(name, correlation_ids, include_closed: false, include_tasks: false)
-        @workflow_api.get_workflows_batch(name, correlation_ids, include_closed: include_closed, include_tasks: include_tasks)
+        @workflow_api.get_workflows_batch(name, correlation_ids, include_closed: include_closed,
+                                                                 include_tasks: include_tasks)
       end
 
       # Update workflow variables

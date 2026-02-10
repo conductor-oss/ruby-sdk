@@ -50,10 +50,10 @@ class PromptJourney
     # Customer service greeting prompt
     greeting_prompt = <<~PROMPT
       You are a friendly customer service representative for TechMart.
-      
+
       Customer Name: ${customer_name}
       Issue Category: ${issue_category}
-      
+
       Please greet the customer warmly and ask how you can help them today.
       Keep your response concise and professional.
     PROMPT
@@ -64,16 +64,16 @@ class PromptJourney
       description: 'Customer service greeting template'
     )
     @created_prompts << 'cs_greeting_ruby'
-    puts "Created prompt: cs_greeting_ruby"
+    puts 'Created prompt: cs_greeting_ruby'
 
     # Product recommendation prompt
     recommendation_prompt = <<~PROMPT
       Based on the following customer preferences, recommend 3 products:
-      
+
       Budget: ${budget}
       Category: ${category}
       Previous Purchases: ${previous_purchases}
-      
+
       Format your response as a numbered list with brief descriptions.
     PROMPT
 
@@ -83,16 +83,16 @@ class PromptJourney
       description: 'Product recommendation template'
     )
     @created_prompts << 'product_recommendation_ruby'
-    puts "Created prompt: product_recommendation_ruby"
+    puts 'Created prompt: product_recommendation_ruby'
 
     # Issue resolution prompt
     resolution_prompt = <<~PROMPT
       You are helping resolve a customer issue.
-      
+
       Issue: ${issue_description}
       Product: ${product_name}
       Purchase Date: ${purchase_date}
-      
+
       Provide a helpful resolution or next steps. Be empathetic and solution-focused.
     PROMPT
 
@@ -102,7 +102,7 @@ class PromptJourney
       description: 'Issue resolution template'
     )
     @created_prompts << 'issue_resolution_ruby'
-    puts "Created prompt: issue_resolution_ruby"
+    puts 'Created prompt: issue_resolution_ruby'
   end
 
   def retrieve_prompts
@@ -110,8 +110,12 @@ class PromptJourney
 
     # Get specific prompt
     prompt = @prompt_client.get_prompt('cs_greeting_ruby')
-    puts "Retrieved prompt: cs_greeting_ruby"
-    puts "  Description: #{prompt['description'] || prompt.description rescue 'N/A'}"
+    puts 'Retrieved prompt: cs_greeting_ruby'
+    puts "  Description: #{begin
+      prompt['description'] || prompt.description
+    rescue StandardError
+      'N/A'
+    end}"
 
     # Get all prompts
     all_prompts = @prompt_client.get_prompts
@@ -131,7 +135,7 @@ class PromptJourney
       'issue_category' => 'Technical Support'
     }
 
-    puts "Testing cs_greeting_ruby with:"
+    puts 'Testing cs_greeting_ruby with:'
     test_input.each { |k, v| puts "  #{k}: #{v}" }
 
     begin
@@ -144,7 +148,11 @@ class PromptJourney
 
       puts "\nAI Response:"
       puts '-' * 40
-      response = result.is_a?(Hash) ? result['response'] : result.response rescue result
+      response = begin
+        result.is_a?(Hash) ? result['response'] : result.response
+      rescue StandardError
+        result
+      end
       puts response.to_s[0..500]
       puts '-' * 40
     rescue Conductor::ApiError => e
@@ -166,7 +174,11 @@ class PromptJourney
         AI_INTEGRATION,
         AI_MODEL
       )
-      response = result.is_a?(Hash) ? result['response'] : result.response rescue result
+      response = begin
+        result.is_a?(Hash) ? result['response'] : result.response
+      rescue StandardError
+        result
+      end
       puts "Response preview: #{response.to_s[0..200]}..."
     rescue Conductor::ApiError => e
       puts "Test failed: #{e.message}"
@@ -183,12 +195,12 @@ class PromptJourney
     ]
 
     # Add tags
-    puts "Adding tags to cs_greeting_ruby..."
+    puts 'Adding tags to cs_greeting_ruby...'
     @prompt_client.update_tag_for_prompt_template('cs_greeting_ruby', tags)
 
     # Get tags
     retrieved_tags = @prompt_client.get_tags_for_prompt_template('cs_greeting_ruby')
-    puts "Retrieved tags:"
+    puts 'Retrieved tags:'
     retrieved_tags.each do |tag|
       key = tag.is_a?(Hash) ? tag['key'] : tag.key
       value = tag.is_a?(Hash) ? tag['value'] : tag.value
@@ -211,12 +223,10 @@ class PromptJourney
     puts "\n--- Cleanup ---"
 
     @created_prompts.each do |name|
-      begin
-        @prompt_client.delete_prompt(name)
-        puts "Deleted prompt: #{name}"
-      rescue StandardError => e
-        puts "Could not delete #{name}: #{e.message}"
-      end
+      @prompt_client.delete_prompt(name)
+      puts "Deleted prompt: #{name}"
+    rescue StandardError => e
+      puts "Could not delete #{name}: #{e.message}"
     end
 
     puts "\nPrompt journey complete!"

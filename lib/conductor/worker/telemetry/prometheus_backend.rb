@@ -101,7 +101,7 @@ module Conductor
           counter = Prometheus::Client::Counter.new(
             metric_name,
             docstring: docstring,
-            labels: [:task_type, :error, :exception, :retryable]
+            labels: %i[task_type error exception retryable]
           )
           @registry.register(counter)
           @counters[name] = counter
@@ -153,7 +153,7 @@ module Conductor
               counter = Prometheus::Client::Counter.new(
                 metric_name,
                 docstring: "Counter for #{name}",
-                labels: [:task_type, :error, :exception, :retryable]
+                labels: %i[task_type error exception retryable]
               )
               @registry.register(counter)
               counter

@@ -10,7 +10,8 @@ module Conductor
       # @param termination_condition [String] Condition expression for when to stop polling
       # @param polling_interval [Integer] Polling interval in seconds (default: 60)
       # @param polling_strategy [String] Polling strategy ('FIXED' or 'LINEAR_BACKOFF')
-      def initialize(task_ref_name, http_input, termination_condition: nil, polling_interval: 60, polling_strategy: 'FIXED')
+      def initialize(task_ref_name, http_input, termination_condition: nil, polling_interval: 60,
+                     polling_strategy: 'FIXED')
         http_hash = case http_input
                     when HttpInput
                       http_input.to_h

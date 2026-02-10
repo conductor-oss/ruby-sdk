@@ -54,7 +54,9 @@ module Conductor
           self.status = attributes[:status] if attributes.key?(:status)
           self.output_data = attributes[:output_data] || {}
           self.logs = attributes[:logs] || []
-          self.external_output_payload_storage_path = attributes[:external_output_payload_storage_path] if attributes.key?(:external_output_payload_storage_path)
+          if attributes.key?(:external_output_payload_storage_path)
+            self.external_output_payload_storage_path = attributes[:external_output_payload_storage_path]
+          end
           self.sub_workflow_id = attributes[:sub_workflow_id] if attributes.key?(:sub_workflow_id)
           self.extend_lease = attributes[:extend_lease] || false
         end

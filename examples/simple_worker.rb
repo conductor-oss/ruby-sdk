@@ -65,7 +65,7 @@ math_worker = Conductor::Worker.define('math_task', poll_interval: 1) do |task|
            when 'add' then a + b
            when 'subtract' then a - b
            when 'multiply' then a * b
-           when 'divide' then b != 0 ? a / b : 'Error: Division by zero'
+           when 'divide' then b.zero? ? 'Error: Division by zero' : a / b
            else 'Unknown operation'
            end
 
@@ -78,7 +78,7 @@ end
 # Example 3: Worker that can fail
 failing_worker = Conductor::Worker.define('failing_task', poll_interval: 1) do |task|
   puts "\n[FailingWorker] Executing task: #{task.task_id}"
-  
+
   should_fail = task.input_data['should_fail']
 
   if should_fail
@@ -101,23 +101,23 @@ runner.register_worker(SimpleWorker.new)
 runner.register_worker(math_worker)
 runner.register_worker(failing_worker)
 
-puts "[TaskRunner] Registered 3 workers:"
-puts "  - simple_task (class-based)"
-puts "  - math_task (block-based)"
-puts "  - failing_task (block-based)"
+puts '[TaskRunner] Registered 3 workers:'
+puts '  - simple_task (class-based)'
+puts '  - math_task (block-based)'
+puts '  - failing_task (block-based)'
 
 # Start the runner
 puts "\n[TaskRunner] Starting worker threads..."
 runner.start(threads: 1)
 
 puts "\nWorkers are now polling for tasks. Press Ctrl+C to stop."
-puts "=" * 60
+puts '=' * 60
 
 # Keep the main thread alive and handle Ctrl+C gracefully
 trap('INT') do
   puts "\n\nReceived interrupt signal..."
   runner.stop
-  puts "Workers stopped. Exiting."
+  puts 'Workers stopped. Exiting.'
   exit 0
 end
 

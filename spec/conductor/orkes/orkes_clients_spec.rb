@@ -3,14 +3,14 @@
 require 'spec_helper'
 
 RSpec.describe Conductor::Orkes::OrkesClients do
+  subject(:clients) { described_class.new(configuration) }
+
   let(:configuration) { Conductor::Configuration.new }
   let(:api_client) { instance_double(Conductor::Http::ApiClient) }
 
   before do
     allow(Conductor::Http::ApiClient).to receive(:new).with(configuration: configuration).and_return(api_client)
   end
-
-  subject(:clients) { described_class.new(configuration) }
 
   describe '#initialize' do
     it 'stores configuration and creates api_client' do

@@ -47,10 +47,10 @@ module Conductor
           @backend.observe('task_execute_time_seconds', event.duration_ms / 1000.0,
                            labels: { task_type: event.task_type })
 
-          if event.output_size_bytes
-            @backend.observe('task_result_size_bytes', event.output_size_bytes,
-                             labels: { task_type: event.task_type })
-          end
+          return unless event.output_size_bytes
+
+          @backend.observe('task_result_size_bytes', event.output_size_bytes,
+                           labels: { task_type: event.task_type })
         end
 
         def on_task_execution_failure(event)

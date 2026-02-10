@@ -29,9 +29,9 @@ end
 RSpec.describe 'Conductor::Workflow.simple_task' do
   it 'creates a SimpleTask with inputs' do
     task = Conductor::Workflow.simple_task('my_task', 'task_ref', {
-      'userId' => '${workflow.input.userId}',
-      'action' => 'process'
-    })
+                                             'userId' => '${workflow.input.userId}',
+                                             'action' => 'process'
+                                           })
 
     expect(task).to be_a(Conductor::Workflow::SimpleTask)
     expect(task.input_parameters['userId']).to eq('${workflow.input.userId}')

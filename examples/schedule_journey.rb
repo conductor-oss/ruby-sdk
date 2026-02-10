@@ -77,13 +77,13 @@ class ScheduleJourney
     # Schedule 1: Every minute (for demo)
     schedule1 = {
       'name' => 'order_processor_minutely',
-      'cronExpression' => '0 * * * * ?',  # Every minute
+      'cronExpression' => '0 * * * * ?', # Every minute
       'startWorkflowRequest' => {
         'name' => 'scheduled_order_processor',
         'version' => 1,
         'input' => { 'type' => 'minutely' }
       },
-      'paused' => true,  # Start paused for demo
+      'paused' => true, # Start paused for demo
       'scheduleStartTime' => (Time.now.to_i * 1000),
       'zoneId' => 'America/New_York'
     }
@@ -95,7 +95,7 @@ class ScheduleJourney
     # Schedule 2: Daily at midnight
     schedule2 = {
       'name' => 'order_processor_daily',
-      'cronExpression' => '0 0 0 * * ?',  # Daily at midnight
+      'cronExpression' => '0 0 0 * * ?', # Daily at midnight
       'startWorkflowRequest' => {
         'name' => 'scheduled_order_processor',
         'version' => 1,
@@ -111,7 +111,7 @@ class ScheduleJourney
     # Schedule 3: Weekly on Monday
     schedule3 = {
       'name' => 'order_processor_weekly',
-      'cronExpression' => '0 0 9 ? * MON',  # Monday at 9 AM
+      'cronExpression' => '0 0 9 ? * MON', # Monday at 9 AM
       'startWorkflowRequest' => {
         'name' => 'scheduled_order_processor',
         'version' => 1,
@@ -146,7 +146,7 @@ class ScheduleJourney
     puts "\nPausing order_processor_minutely..."
     @scheduler.pause_schedule('order_processor_minutely')
 
-    puts "Resuming order_processor_minutely..."
+    puts 'Resuming order_processor_minutely...'
     begin
       @scheduler.resume_schedule('order_processor_minutely')
     rescue Conductor::ApiError => e
@@ -158,7 +158,7 @@ class ScheduleJourney
     @scheduler.pause_all_schedules
 
     # Resume all schedules
-    puts "Resuming all schedules..."
+    puts 'Resuming all schedules...'
     @scheduler.resume_all_schedules
   end
 
@@ -171,12 +171,12 @@ class ScheduleJourney
     ]
 
     # Set tags
-    puts "Setting tags on order_processor_daily..."
+    puts 'Setting tags on order_processor_daily...'
     @scheduler.set_scheduler_tags(tags, 'order_processor_daily')
 
     # Get tags
     retrieved_tags = @scheduler.get_scheduler_tags('order_processor_daily')
-    puts "Retrieved tags:"
+    puts 'Retrieved tags:'
     retrieved_tags.each do |tag|
       key = tag.is_a?(Hash) ? tag['key'] : tag.key
       value = tag.is_a?(Hash) ? tag['value'] : tag.value
@@ -184,7 +184,7 @@ class ScheduleJourney
     end
 
     # Delete tags
-    puts "Deleting tags..."
+    puts 'Deleting tags...'
     @scheduler.delete_scheduler_tags(tags, 'order_processor_daily')
   end
 
@@ -192,7 +192,7 @@ class ScheduleJourney
     puts "\n--- Preview and Search ---"
 
     # Get next execution times
-    puts "Next 5 execution times for order_processor_minutely:"
+    puts 'Next 5 execution times for order_processor_minutely:'
     begin
       times = @scheduler.get_next_few_schedule_execution_times(
         '0 * * * * ?',
@@ -222,12 +222,10 @@ class ScheduleJourney
     puts "\n--- Cleanup ---"
 
     @created_schedules.each do |name|
-      begin
-        @scheduler.delete_schedule(name)
-        puts "Deleted schedule: #{name}"
-      rescue StandardError => e
-        puts "Could not delete #{name}: #{e.message}"
-      end
+      @scheduler.delete_schedule(name)
+      puts "Deleted schedule: #{name}"
+    rescue StandardError => e
+      puts "Could not delete #{name}: #{e.message}"
     end
 
     puts "\nSchedule journey complete!"

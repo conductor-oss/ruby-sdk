@@ -16,8 +16,8 @@ require 'securerandom'
 
 RSpec.describe 'Task Operations Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
   let(:server_url) { ENV['CONDUCTOR_SERVER_URL'] || 'https://developer.orkescloud.com/api' }
-  let(:auth_key) { ENV['CONDUCTOR_AUTH_KEY'] }
-  let(:auth_secret) { ENV['CONDUCTOR_AUTH_SECRET'] }
+  let(:auth_key) { ENV.fetch('CONDUCTOR_AUTH_KEY', nil) }
+  let(:auth_secret) { ENV.fetch('CONDUCTOR_AUTH_SECRET', nil) }
   let(:test_id) { "ruby_sdk_task_#{SecureRandom.hex(4)}" }
 
   let(:configuration) do
@@ -37,11 +37,9 @@ RSpec.describe 'Task Operations Integration', skip: !ENV['CONDUCTOR_INTEGRATION'
 
   # Helper to skip tests that hit free tier limits
   def skip_if_limit_reached(error)
-    if error.is_a?(Conductor::ApiError) && error.status == 402
-      skip "Orkes free tier limit reached: #{error.message}"
-    else
-      raise error
-    end
+    raise error unless error.is_a?(Conductor::ApiError) && error.status == 402
+
+    skip "Orkes free tier limit reached: #{error.message}"
   end
 
   describe 'Setup: Create test task and workflow' do
@@ -189,11 +187,9 @@ RSpec.describe 'Task Operations Integration', skip: !ENV['CONDUCTOR_INTEGRATION'
     end
 
     after do
-      begin
-        workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
-      rescue StandardError
-        # Ignore
-      end
+      workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
+    rescue StandardError
+      # Ignore
     end
 
     it 'poll - polls for a task (single)' do
@@ -296,11 +292,9 @@ RSpec.describe 'Task Operations Integration', skip: !ENV['CONDUCTOR_INTEGRATION'
     end
 
     after do
-      begin
-        workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
-      rescue StandardError
-        # Ignore
-      end
+      workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
+    rescue StandardError
+      # Ignore
     end
 
     it 'update_task - updates task with result' do
@@ -372,11 +366,9 @@ RSpec.describe 'Task Operations Integration', skip: !ENV['CONDUCTOR_INTEGRATION'
     end
 
     after do
-      begin
-        workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
-      rescue StandardError
-        # Ignore
-      end
+      workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
+    rescue StandardError
+      # Ignore
     end
 
     it 'update_task_by_ref_name - completes task by reference name' do

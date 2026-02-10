@@ -44,7 +44,6 @@ def main
     puts "\nUpdating secret..."
     secret_client.put_secret(secret_name, 'updated-secret-value-67890')
     puts 'Secret updated'
-
   ensure
     # Clean up
     puts "\nDeleting secret..."

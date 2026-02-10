@@ -108,14 +108,14 @@ def main
   JS
 
   js = JavascriptTask.new('hello_script', say_hello_js)
-    .input('name', wf.input('name'))
+                     .input('name', wf.input('name'))
 
   # -------------------------------------------------------------------------
   # 2. HTTP Task - Make external API call
   # -------------------------------------------------------------------------
   http_call = HttpTask.new('call_remote_api', {
-    'uri' => 'https://orkes-api-tester.orkesconductor.com/api'
-  })
+                             'uri' => 'https://orkes-api-tester.orkesconductor.com/api'
+                           })
 
   # -------------------------------------------------------------------------
   # 3. Sub-Workflow Task with HTTP and Wait
@@ -123,8 +123,8 @@ def main
   sub_workflow = ConductorWorkflow.new(workflow_client, 'sub_ruby', version: 1, executor: workflow_executor)
 
   sub_http = HttpTask.new('sub_call_api', {
-    'uri' => sub_workflow.input('uri')
-  })
+                            'uri' => sub_workflow.input('uri')
+                          })
 
   sub_wait = WaitTask.new('sub_wait', wait_for_seconds: 2)
 
@@ -133,7 +133,7 @@ def main
 
   # Create sub-workflow task
   sub_workflow_task = SubWorkflowTask.new('call_sub_workflow', 'sub_ruby', version: 1)
-    .input('uri', js.output('url'))
+                                     .input('uri', js.output('url'))
 
   # -------------------------------------------------------------------------
   # 4. Wait Task - Pause execution for 2 seconds
@@ -145,27 +145,27 @@ def main
   # -------------------------------------------------------------------------
   jq_script = '{ key3: (.key1.value1 + .key2.value2) }'
   jq = JsonJqTask.new('jq_process', jq_script)
-    .input('key1', { 'value1' => %w[a b] })
-    .input('key2', { 'value2' => %w[d e] })
+                 .input('key1', { 'value1' => %w[a b] })
+                 .input('key2', { 'value2' => %w[d e] })
 
   # -------------------------------------------------------------------------
   # 6. Set Variable Task - Store workflow variables
   # -------------------------------------------------------------------------
   set_wf_var = SetVariableTask.new('set_wf_var_ref')
-    .input('var1', 'value1')
-    .input('var2', 42)
-    .input('var3', %w[a b c])
+                              .input('var1', 'value1')
+                              .input('var2', 42)
+                              .input('var3', %w[a b c])
 
   # -------------------------------------------------------------------------
   # 7. Switch Task - Conditional branching
   # -------------------------------------------------------------------------
   # Route task for US
   route_us = SimpleTask.new('route', 'us_routing')
-    .input('country', wf.input('country'))
+                       .input('country', wf.input('country'))
 
   # Route task for CA
   route_ca = SimpleTask.new('route', 'ca_routing')
-    .input('country', wf.input('country'))
+                       .input('country', wf.input('country'))
 
   # Terminate task for unsupported countries
   bad_country = TerminateTask.new(
@@ -175,9 +175,9 @@ def main
   )
 
   switch = SwitchTask.new('decide', wf.input('country'))
-    .switch_case('US', [route_us])
-    .switch_case('CA', [route_ca])
-    .default_case([bad_country])
+                     .switch_case('US', [route_us])
+                     .switch_case('CA', [route_ca])
+                     .default_case([bad_country])
 
   # -------------------------------------------------------------------------
   # BUILD WORKFLOW STRUCTURE

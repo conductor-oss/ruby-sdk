@@ -55,7 +55,11 @@ module Conductor
     def parse_error_code(body)
       return nil unless body
 
-      data = JSON.parse(body) rescue nil
+      data = begin
+        JSON.parse(body)
+      rescue StandardError
+        nil
+      end
       data&.dig('error') || ''
     end
 

@@ -20,8 +20,8 @@ require 'securerandom'
 
 RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
   let(:server_url) { ENV['CONDUCTOR_SERVER_URL'] || 'https://developer.orkescloud.com/api' }
-  let(:auth_key) { ENV['CONDUCTOR_AUTH_KEY'] }
-  let(:auth_secret) { ENV['CONDUCTOR_AUTH_SECRET'] }
+  let(:auth_key) { ENV.fetch('CONDUCTOR_AUTH_KEY', nil) }
+  let(:auth_secret) { ENV.fetch('CONDUCTOR_AUTH_SECRET', nil) }
   let(:test_id) { "ruby_sdk_wfops_#{SecureRandom.hex(4)}" }
 
   let(:configuration) do
@@ -40,11 +40,9 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
 
   # Helper to skip tests that hit free tier limits
   def skip_if_limit_reached(error)
-    if error.is_a?(Conductor::ApiError) && error.status == 402
-      skip "Orkes free tier limit reached: #{error.message}"
-    else
-      raise error
-    end
+    raise error unless error.is_a?(Conductor::ApiError) && error.status == 402
+
+    skip "Orkes free tier limit reached: #{error.message}"
   end
 
   # Helper to get workflow status
@@ -110,34 +108,31 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
 
     before do
       # Ensure workflow exists
-      begin
-        workflow_def = Conductor::Http::Models::WorkflowDef.new(
-          name: "#{test_id}_wait_workflow",
-          version: 1,
-          description: 'Test workflow',
-          tasks: [
-            Conductor::Http::Models::WorkflowTask.new(
-              name: 'wait_task',
-              task_reference_name: 'wait_task_ref',
-              type: 'WAIT',
-              input_parameters: {}
-            )
-          ],
-          schema_version: 2
-        )
-        metadata_client.register_workflow_def(workflow_def, overwrite: true)
-      rescue Conductor::ApiError
-        # Workflow may exist
-      end
+
+      workflow_def = Conductor::Http::Models::WorkflowDef.new(
+        name: "#{test_id}_wait_workflow",
+        version: 1,
+        description: 'Test workflow',
+        tasks: [
+          Conductor::Http::Models::WorkflowTask.new(
+            name: 'wait_task',
+            task_reference_name: 'wait_task_ref',
+            type: 'WAIT',
+            input_parameters: {}
+          )
+        ],
+        schema_version: 2
+      )
+      metadata_client.register_workflow_def(workflow_def, overwrite: true)
+    rescue Conductor::ApiError
+      # Workflow may exist
     end
 
     after do
       workflow_ids.each do |wf_id|
-        begin
-          workflow_client.terminate_workflow(wf_id, reason: 'Test cleanup')
-        rescue StandardError
-          # Ignore
-        end
+        workflow_client.terminate_workflow(wf_id, reason: 'Test cleanup')
+      rescue StandardError
+        # Ignore
       end
     end
 
@@ -213,34 +208,30 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
     let(:workflow_ids) { [] }
 
     before do
-      begin
-        workflow_def = Conductor::Http::Models::WorkflowDef.new(
-          name: "#{test_id}_wait_workflow",
-          version: 1,
-          description: 'Test workflow',
-          tasks: [
-            Conductor::Http::Models::WorkflowTask.new(
-              name: 'wait_task',
-              task_reference_name: 'wait_task_ref',
-              type: 'WAIT',
-              input_parameters: {}
-            )
-          ],
-          schema_version: 2
-        )
-        metadata_client.register_workflow_def(workflow_def, overwrite: true)
-      rescue Conductor::ApiError
-        # Workflow may exist
-      end
+      workflow_def = Conductor::Http::Models::WorkflowDef.new(
+        name: "#{test_id}_wait_workflow",
+        version: 1,
+        description: 'Test workflow',
+        tasks: [
+          Conductor::Http::Models::WorkflowTask.new(
+            name: 'wait_task',
+            task_reference_name: 'wait_task_ref',
+            type: 'WAIT',
+            input_parameters: {}
+          )
+        ],
+        schema_version: 2
+      )
+      metadata_client.register_workflow_def(workflow_def, overwrite: true)
+    rescue Conductor::ApiError
+      # Workflow may exist
     end
 
     after do
       workflow_ids.each do |wf_id|
-        begin
-          workflow_client.terminate_workflow(wf_id, reason: 'Test cleanup')
-        rescue StandardError
-          # Ignore
-        end
+        workflow_client.terminate_workflow(wf_id, reason: 'Test cleanup')
+      rescue StandardError
+        # Ignore
       end
     end
 
@@ -320,11 +311,9 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
     end
 
     after do
-      begin
-        workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
-      rescue StandardError
-        # Ignore
-      end
+      workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
+    rescue StandardError
+      # Ignore
     end
 
     it 'get_workflow_status - gets lightweight workflow status' do
@@ -386,11 +375,9 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
     end
 
     after do
-      begin
-        workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
-      rescue StandardError
-        # Ignore
-      end
+      workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
+    rescue StandardError
+      # Ignore
     end
 
     it 'search - searches workflows with query' do
@@ -428,28 +415,26 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
 
   describe 'Synchronous Execution' do
     before do
-      begin
-        workflow_def = Conductor::Http::Models::WorkflowDef.new(
-          name: "#{test_id}_simple_workflow",
-          version: 1,
-          description: 'Simple test workflow',
-          tasks: [
-            Conductor::Http::Models::WorkflowTask.new(
-              name: 'set_var',
-              task_reference_name: 'set_var_ref',
-              type: 'SET_VARIABLE',
-              input_parameters: { 'result' => '${workflow.input.value}' }
-            )
-          ],
-          output_parameters: {
-            'output' => '${set_var_ref.input.result}'
-          },
-          schema_version: 2
-        )
-        metadata_client.register_workflow_def(workflow_def, overwrite: true)
-      rescue Conductor::ApiError
-        # Workflow may exist
-      end
+      workflow_def = Conductor::Http::Models::WorkflowDef.new(
+        name: "#{test_id}_simple_workflow",
+        version: 1,
+        description: 'Simple test workflow',
+        tasks: [
+          Conductor::Http::Models::WorkflowTask.new(
+            name: 'set_var',
+            task_reference_name: 'set_var_ref',
+            type: 'SET_VARIABLE',
+            input_parameters: { 'result' => '${workflow.input.value}' }
+          )
+        ],
+        output_parameters: {
+          'output' => '${set_var_ref.input.result}'
+        },
+        schema_version: 2
+      )
+      metadata_client.register_workflow_def(workflow_def, overwrite: true)
+    rescue Conductor::ApiError
+      # Workflow may exist
     end
 
     it 'execute_workflow - runs workflow synchronously' do
@@ -480,35 +465,31 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
     let(:workflow_ids) { [] }
 
     before do
-      begin
-        workflow_def = Conductor::Http::Models::WorkflowDef.new(
-          name: "#{test_id}_wait_workflow",
-          version: 1,
-          description: 'Test workflow',
-          tasks: [
-            Conductor::Http::Models::WorkflowTask.new(
-              name: 'wait_task',
-              task_reference_name: 'wait_task_ref',
-              type: 'WAIT',
-              input_parameters: {}
-            )
-          ],
-          schema_version: 2,
-          restartable: true
-        )
-        metadata_client.register_workflow_def(workflow_def, overwrite: true)
-      rescue Conductor::ApiError
-        # Workflow may exist
-      end
+      workflow_def = Conductor::Http::Models::WorkflowDef.new(
+        name: "#{test_id}_wait_workflow",
+        version: 1,
+        description: 'Test workflow',
+        tasks: [
+          Conductor::Http::Models::WorkflowTask.new(
+            name: 'wait_task',
+            task_reference_name: 'wait_task_ref',
+            type: 'WAIT',
+            input_parameters: {}
+          )
+        ],
+        schema_version: 2,
+        restartable: true
+      )
+      metadata_client.register_workflow_def(workflow_def, overwrite: true)
+    rescue Conductor::ApiError
+      # Workflow may exist
     end
 
     after do
       workflow_ids.each do |wf_id|
-        begin
-          workflow_client.terminate_workflow(wf_id, reason: 'Test cleanup')
-        rescue StandardError
-          # Ignore
-        end
+        workflow_client.terminate_workflow(wf_id, reason: 'Test cleanup')
+      rescue StandardError
+        # Ignore
       end
     end
 
@@ -623,11 +604,9 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
     end
 
     after do
-      begin
-        workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
-      rescue StandardError
-        # Ignore
-      end
+      workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
+    rescue StandardError
+      # Ignore
     end
 
     it 'update_workflow_state - updates workflow variables' do
@@ -650,25 +629,23 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
 
   describe 'Start Workflow Alternatives' do
     before do
-      begin
-        workflow_def = Conductor::Http::Models::WorkflowDef.new(
-          name: "#{test_id}_simple_workflow",
-          version: 1,
-          description: 'Simple test workflow',
-          tasks: [
-            Conductor::Http::Models::WorkflowTask.new(
-              name: 'set_var',
-              task_reference_name: 'set_var_ref',
-              type: 'SET_VARIABLE',
-              input_parameters: { 'result' => '${workflow.input.value}' }
-            )
-          ],
-          schema_version: 2
-        )
-        metadata_client.register_workflow_def(workflow_def, overwrite: true)
-      rescue Conductor::ApiError
-        # Workflow may exist
-      end
+      workflow_def = Conductor::Http::Models::WorkflowDef.new(
+        name: "#{test_id}_simple_workflow",
+        version: 1,
+        description: 'Simple test workflow',
+        tasks: [
+          Conductor::Http::Models::WorkflowTask.new(
+            name: 'set_var',
+            task_reference_name: 'set_var_ref',
+            type: 'SET_VARIABLE',
+            input_parameters: { 'result' => '${workflow.input.value}' }
+          )
+        ],
+        schema_version: 2
+      )
+      metadata_client.register_workflow_def(workflow_def, overwrite: true)
+    rescue Conductor::ApiError
+      # Workflow may exist
     end
 
     it 'start_workflow_by_name - starts workflow with simple input' do

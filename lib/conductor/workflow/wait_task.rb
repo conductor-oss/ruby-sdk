@@ -20,9 +20,7 @@ module Conductor
           task_type: TaskType::WAIT
         )
 
-        if wait_until && wait_for_seconds
-          raise ArgumentError, 'Only one of wait_until or wait_for_seconds should be provided'
-        end
+        raise ArgumentError, 'Only one of wait_until or wait_for_seconds should be provided' if wait_until && wait_for_seconds
 
         if wait_until
           @input_parameters = { 'wait_until' => wait_until }

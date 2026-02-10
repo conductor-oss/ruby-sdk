@@ -147,7 +147,11 @@ module Conductor
 
       def parse_error_message(response)
         # Try to parse JSON error message
-        data = JSON.parse(response.body) rescue nil
+        data = begin
+          JSON.parse(response.body)
+        rescue StandardError
+          nil
+        end
         message = data&.dig('message') || response.reason_phrase || "HTTP #{response.status}"
         "(#{response.status}) #{message}"
       end

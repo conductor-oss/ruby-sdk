@@ -70,9 +70,9 @@ def create_rag_workflow(workflow_client, workflow_executor)
 
   # Step 4: Generate answer using retrieved context
   system_prompt = <<~PROMPT
-    You are a helpful assistant. Answer the user's question based ONLY on the 
+    You are a helpful assistant. Answer the user's question based ONLY on the#{' '}
     context provided below. If the context does not contain enough information, say so.
-    
+
     Context from knowledge base:
     ${search_index_ref.output.result}
   PROMPT
@@ -122,7 +122,7 @@ def main
 
   # Sample document and question
   sample_text = <<~TEXT
-    Ruby is a dynamic, open source programming language with a focus on simplicity 
+    Ruby is a dynamic, open source programming language with a focus on simplicity#{' '}
     and productivity. It has an elegant syntax that is natural to read and easy to write.
     Ruby was created by Yukihiro "Matz" Matsumoto in the mid-1990s in Japan.
     Ruby on Rails, often simply called Rails, is a web application framework written in Ruby.

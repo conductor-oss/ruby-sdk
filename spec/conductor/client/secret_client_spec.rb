@@ -28,9 +28,9 @@ RSpec.describe Conductor::Client::SecretClient do
 
   describe '#list_all_secret_names' do
     it 'delegates to secret_api' do
-      expect(secret_api).to receive(:list_all_secret_names).and_return(['secret1', 'secret2'])
+      expect(secret_api).to receive(:list_all_secret_names).and_return(%w[secret1 secret2])
       result = client.list_all_secret_names
-      expect(result).to eq(['secret1', 'secret2'])
+      expect(result).to eq(%w[secret1 secret2])
     end
   end
 

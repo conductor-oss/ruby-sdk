@@ -24,17 +24,17 @@ def create_webhook_workflow(workflow_client, workflow_executor)
 
   # Initial task
   init = SimpleTask.new('init_process', 'init_ref')
-    .input('order_id', workflow.input('order_id'))
+                   .input('order_id', workflow.input('order_id'))
 
   # Wait for webhook - pauses until external signal received
   wait_webhook = WaitForWebhookTask.new('wait_for_payment')
-    .input('matches', {
-      '$.[?(@.order_id == "' + '${workflow.input.order_id}' + '")]' => true
-    })
+                                   .input('matches', {
+                                            '$.[?(@.order_id == "${workflow.input.order_id}")]' => true
+                                          })
 
   # Process after webhook received
   process = SimpleTask.new('process_payment', 'process_ref')
-    .input('payment_data', '${wait_for_payment.output}')
+                      .input('payment_data', '${wait_for_payment.output}')
 
   workflow >> init >> wait_webhook >> process
 

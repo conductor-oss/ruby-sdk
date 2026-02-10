@@ -194,24 +194,24 @@ module Conductor
       #   workflow >> task1 >> task2 >> task3
       # @example Parallel execution (fork-join)
       #   workflow >> [[branch1_task1, branch1_task2], [branch2_task1]]
-      def >>(task)
-        case task
+      def >>(other)
+        case other
         when Array
           # Fork-join: array of arrays of tasks
-          forked_tasks = task.map do |fork_task|
+          forked_tasks = other.map do |fork_task|
             fork_task.is_a?(Array) ? fork_task : [fork_task]
           end
           add_fork_join_tasks(forked_tasks)
         when ConductorWorkflow
           # Inline sub-workflow
           inline = InlineSubWorkflowTask.new(
-            "#{task.name}_#{SecureRandom.uuid[0..7]}",
-            task
+            "#{other.name}_#{SecureRandom.uuid[0..7]}",
+            other
           )
-          inline.input_parameters.merge!(task.instance_variable_get(:@input_template))
+          inline.input_parameters.merge!(other.instance_variable_get(:@input_template))
           add_task(inline)
         else
-          add_task(task)
+          add_task(other)
         end
         self
       end
@@ -335,9 +335,7 @@ module Conductor
       def add_fork_join_tasks(forked_tasks)
         forked_tasks.each do |branch|
           branch.each do |task|
-            unless task.is_a?(TaskInterface) || task.is_a?(ConductorWorkflow)
-              raise ArgumentError, "Invalid task type in fork: #{task.class}"
-            end
+            raise ArgumentError, "Invalid task type in fork: #{task.class}" unless task.is_a?(TaskInterface) || task.is_a?(ConductorWorkflow)
           end
         end
 
@@ -364,15 +362,15 @@ module Conductor
         workflow_task_list.each_with_index do |wf_task, i|
           updated_list << wf_task
 
-          if wf_task.type == TaskType::FORK_JOIN
-            next_task = workflow_task_list[i + 1]
-            # If next task is not a JOIN, auto-generate one
-            if next_task.nil? || next_task.type != TaskType::JOIN
-              join_on = wf_task.fork_tasks.map { |branch| branch.last.task_reference_name }
-              join = JoinTask.new("join_#{wf_task.task_reference_name}", join_on: join_on)
-              updated_list << join.to_workflow_task
-            end
-          end
+          next unless wf_task.type == TaskType::FORK_JOIN
+
+          next_task = workflow_task_list[i + 1]
+          # If next task is not a JOIN, auto-generate one
+          next unless next_task.nil? || next_task.type != TaskType::JOIN
+
+          join_on = wf_task.fork_tasks.map { |branch| branch.last.task_reference_name }
+          join = JoinTask.new("join_#{wf_task.task_reference_name}", join_on: join_on)
+          updated_list << join.to_workflow_task
         end
 
         updated_list

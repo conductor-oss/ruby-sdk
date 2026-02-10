@@ -27,11 +27,6 @@ RSpec.describe Conductor::Worker::TaskDefinitionRegistrar do
         expect(result).to be false
       end
     end
-
-    context 'when worker.register_task_def is true' do
-      # Note: These tests would require mocking the MetadataClient
-      # For now, we test the schema generation logic
-    end
   end
 end
 
@@ -80,12 +75,12 @@ RSpec.describe Conductor::Worker::JsonSchemaGenerator do
     it 'generates object schema for Hash' do
       schema = described_class.from_value({ 'name' => 'Alice', 'age' => 30 })
       expect(schema).to eq({
-        'type' => 'object',
-        'properties' => {
-          'name' => { 'type' => 'string' },
-          'age' => { 'type' => 'integer' }
-        }
-      })
+                             'type' => 'object',
+                             'properties' => {
+                               'name' => { 'type' => 'string' },
+                               'age' => { 'type' => 'integer' }
+                             }
+                           })
     end
 
     it 'generates date-time string schema for Time' do
@@ -105,7 +100,7 @@ RSpec.describe Conductor::Worker::JsonSchemaGenerator do
         'user_id' => 123,
         'email' => 'user@example.com',
         'active' => true,
-        'tags' => ['admin', 'user']
+        'tags' => %w[admin user]
       }
 
       schema = described_class.generate_object_schema(sample)

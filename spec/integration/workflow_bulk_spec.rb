@@ -20,8 +20,8 @@ require 'securerandom'
 
 RSpec.describe 'Workflow Bulk Operations Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
   let(:server_url) { ENV['CONDUCTOR_SERVER_URL'] || 'https://developer.orkescloud.com/api' }
-  let(:auth_key) { ENV['CONDUCTOR_AUTH_KEY'] }
-  let(:auth_secret) { ENV['CONDUCTOR_AUTH_SECRET'] }
+  let(:auth_key) { ENV.fetch('CONDUCTOR_AUTH_KEY', nil) }
+  let(:auth_secret) { ENV.fetch('CONDUCTOR_AUTH_SECRET', nil) }
   let(:test_id) { "ruby_sdk_bulk_#{SecureRandom.hex(4)}" }
 
   let(:configuration) do
@@ -40,11 +40,9 @@ RSpec.describe 'Workflow Bulk Operations Integration', skip: !ENV['CONDUCTOR_INT
 
   # Helper to skip tests that hit free tier limits
   def skip_if_limit_reached(error)
-    if error.is_a?(Conductor::ApiError) && error.status == 402
-      skip "Orkes free tier limit reached: #{error.message}"
-    else
-      raise error
-    end
+    raise error unless error.is_a?(Conductor::ApiError) && error.status == 402
+
+    skip "Orkes free tier limit reached: #{error.message}"
   end
 
   # Helper to create a test workflow definition
@@ -119,11 +117,9 @@ RSpec.describe 'Workflow Bulk Operations Integration', skip: !ENV['CONDUCTOR_INT
     after do
       # Terminate all workflows
       workflow_ids.each do |wf_id|
-        begin
-          workflow_client.terminate_workflow(wf_id, reason: 'Test cleanup')
-        rescue StandardError
-          # Ignore cleanup errors
-        end
+        workflow_client.terminate_workflow(wf_id, reason: 'Test cleanup')
+      rescue StandardError
+        # Ignore cleanup errors
       end
     end
 
@@ -252,11 +248,9 @@ RSpec.describe 'Workflow Bulk Operations Integration', skip: !ENV['CONDUCTOR_INT
     after do
       # Terminate all workflows
       workflow_ids.each do |wf_id|
-        begin
-          workflow_client.terminate_workflow(wf_id, reason: 'Test cleanup')
-        rescue StandardError
-          # Ignore cleanup errors
-        end
+        workflow_client.terminate_workflow(wf_id, reason: 'Test cleanup')
+      rescue StandardError
+        # Ignore cleanup errors
       end
     end
 
@@ -302,7 +296,7 @@ RSpec.describe 'Workflow Bulk Operations Integration', skip: !ENV['CONDUCTOR_INT
   end
 
   describe 'Bulk Retry Operations' do
-    # Note: Retry is for failed workflows, which requires a workflow that can fail
+    # NOTE: Retry is for failed workflows, which requires a workflow that can fail
     # We'll create a simplified test that validates the API works
 
     let(:workflow_ids) { [] }
@@ -334,11 +328,9 @@ RSpec.describe 'Workflow Bulk Operations Integration', skip: !ENV['CONDUCTOR_INT
 
     after do
       workflow_ids.each do |wf_id|
-        begin
-          workflow_client.terminate_workflow(wf_id, reason: 'Test cleanup')
-        rescue StandardError
-          # Ignore cleanup errors
-        end
+        workflow_client.terminate_workflow(wf_id, reason: 'Test cleanup')
+      rescue StandardError
+        # Ignore cleanup errors
       end
       # Clean up workflow definition
       begin
@@ -384,7 +376,7 @@ RSpec.describe 'Workflow Bulk Operations Integration', skip: !ENV['CONDUCTOR_INT
 
   describe 'Bulk Operations Error Handling' do
     it 'handles non-existent workflow IDs gracefully' do
-      fake_ids = ['non_existent_1', 'non_existent_2', 'non_existent_3']
+      fake_ids = %w[non_existent_1 non_existent_2 non_existent_3]
 
       # Bulk terminate should handle non-existent IDs
       result = bulk_api.terminate(fake_ids, reason: 'Testing error handling')

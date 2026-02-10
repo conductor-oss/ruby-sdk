@@ -24,8 +24,8 @@ require 'securerandom'
 
 RSpec.describe 'Event Handler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
   let(:server_url) { ENV['CONDUCTOR_SERVER_URL'] || 'https://developer.orkescloud.com/api' }
-  let(:auth_key) { ENV['CONDUCTOR_AUTH_KEY'] }
-  let(:auth_secret) { ENV['CONDUCTOR_AUTH_SECRET'] }
+  let(:auth_key) { ENV.fetch('CONDUCTOR_AUTH_KEY', nil) }
+  let(:auth_secret) { ENV.fetch('CONDUCTOR_AUTH_SECRET', nil) }
   let(:test_id) { "ruby_sdk_event_#{SecureRandom.hex(4)}" }
 
   let(:configuration) do
@@ -45,11 +45,9 @@ RSpec.describe 'Event Handler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] 
 
   # Helper to skip tests that hit free tier limits
   def skip_if_limit_reached(error)
-    if error.is_a?(Conductor::ApiError) && error.status == 402
-      skip "Orkes free tier limit reached: #{error.message}"
-    else
-      raise error
-    end
+    raise error unless error.is_a?(Conductor::ApiError) && error.status == 402
+
+    skip "Orkes free tier limit reached: #{error.message}"
   end
 
   describe 'Setup: Create test workflow' do
@@ -87,34 +85,31 @@ RSpec.describe 'Event Handler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] 
 
     # Ensure workflow exists before each test
     before do
-      begin
-        workflow_def = Conductor::Http::Models::WorkflowDef.new(
-          name: "#{test_id}_event_workflow",
-          version: 1,
-          description: 'Test workflow',
-          tasks: [
-            Conductor::Http::Models::WorkflowTask.new(
-              name: 'event_task',
-              task_reference_name: 'event_task_ref',
-              type: 'SET_VARIABLE',
-              input_parameters: { 'test' => true }
-            )
-          ],
-          schema_version: 2
-        )
-        metadata_client.register_workflow_def(workflow_def, overwrite: true)
-      rescue Conductor::ApiError
-        # Workflow may already exist
-      end
+      workflow_def = Conductor::Http::Models::WorkflowDef.new(
+        name: "#{test_id}_event_workflow",
+        version: 1,
+        description: 'Test workflow',
+        tasks: [
+          Conductor::Http::Models::WorkflowTask.new(
+            name: 'event_task',
+            task_reference_name: 'event_task_ref',
+            type: 'SET_VARIABLE',
+            input_parameters: { 'test' => true }
+          )
+        ],
+        schema_version: 2
+      )
+      metadata_client.register_workflow_def(workflow_def, overwrite: true)
+    rescue Conductor::ApiError
+      # Workflow may already exist
     end
 
     after do
       # Clean up event handler
-      begin
-        event_api.remove_event_handler(handler_name)
-      rescue StandardError
-        # Ignore cleanup errors
-      end
+
+      event_api.remove_event_handler(handler_name)
+    rescue StandardError
+      # Ignore cleanup errors
     end
 
     it '1. add_event_handler - creates a new event handler' do
@@ -343,7 +338,7 @@ RSpec.describe 'Event Handler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] 
   end
 
   describe 'Queue Configuration Operations' do
-    # Note: Queue configuration operations require integration with message queues
+    # NOTE: Queue configuration operations require integration with message queues
     # These tests verify the API calls work but may not actually configure queues
 
     it '6. get_queue_names - lists queue configurations' do
@@ -364,18 +359,17 @@ RSpec.describe 'Event Handler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] 
     it '7. get_queue_config - gets queue configuration' do
       # Try to get configuration for a conductor queue type
       # Note: This may fail if no queues are configured
-      begin
-        config = event_api.get_queue_config('conductor', 'test_queue')
-        expect(config).to be_a(Hash).or be_nil
-      rescue Conductor::ApiError => e
-        # 404 is expected if queue doesn't exist
-        if e.status == 404
-          expect(true).to be true # Queue not found is acceptable
-        elsif e.status == 501
-          skip 'Queue configuration API not available in this environment'
-        else
-          skip_if_limit_reached(e)
-        end
+
+      config = event_api.get_queue_config('conductor', 'test_queue')
+      expect(config).to be_a(Hash).or be_nil
+    rescue Conductor::ApiError => e
+      # 404 is expected if queue doesn't exist
+      if e.status == 404
+        expect(true).to be true # Queue not found is acceptable
+      elsif e.status == 501
+        skip 'Queue configuration API not available in this environment'
+      else
+        skip_if_limit_reached(e)
       end
     end
 
@@ -419,33 +413,29 @@ RSpec.describe 'Event Handler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] 
     let(:event_name) { "#{test_id}:conditional_event" }
 
     before do
-      begin
-        workflow_def = Conductor::Http::Models::WorkflowDef.new(
-          name: "#{test_id}_event_workflow",
-          version: 1,
-          description: 'Test workflow',
-          tasks: [
-            Conductor::Http::Models::WorkflowTask.new(
-              name: 'event_task',
-              task_reference_name: 'event_task_ref',
-              type: 'SET_VARIABLE',
-              input_parameters: { 'test' => true }
-            )
-          ],
-          schema_version: 2
-        )
-        metadata_client.register_workflow_def(workflow_def, overwrite: true)
-      rescue Conductor::ApiError
-        # Workflow may already exist
-      end
+      workflow_def = Conductor::Http::Models::WorkflowDef.new(
+        name: "#{test_id}_event_workflow",
+        version: 1,
+        description: 'Test workflow',
+        tasks: [
+          Conductor::Http::Models::WorkflowTask.new(
+            name: 'event_task',
+            task_reference_name: 'event_task_ref',
+            type: 'SET_VARIABLE',
+            input_parameters: { 'test' => true }
+          )
+        ],
+        schema_version: 2
+      )
+      metadata_client.register_workflow_def(workflow_def, overwrite: true)
+    rescue Conductor::ApiError
+      # Workflow may already exist
     end
 
     after do
-      begin
-        event_api.remove_event_handler(handler_name)
-      rescue StandardError
-        # Ignore cleanup errors
-      end
+      event_api.remove_event_handler(handler_name)
+    rescue StandardError
+      # Ignore cleanup errors
     end
 
     it 'creates event handler with JavaScript condition' do

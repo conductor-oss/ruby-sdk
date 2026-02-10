@@ -107,7 +107,7 @@ module Conductor
         available_slots = @max_workers - current_capacity
 
         # 3. Adaptive backoff for empty polls
-        if @consecutive_empty_polls.value > 0
+        if @consecutive_empty_polls.value.positive?
           backoff_ms = calculate_adaptive_backoff
           elapsed_ms = @last_poll_time ? (Time.now - @last_poll_time) * 1000 : backoff_ms
 
@@ -162,7 +162,7 @@ module Conductor
       # @return [Hash]
       def extract_worker_options(worker)
         options = {}
-        Worker::DEFAULTS.keys.each do |key|
+        Worker::DEFAULTS.each_key do |key|
           options[key] = worker.send(key) if worker.respond_to?(key)
         end
         options
@@ -200,7 +200,7 @@ module Conductor
         return [] if @worker.paused
 
         # Auth failure exponential backoff
-        if @auth_failures.value > 0 && @last_auth_failure_time
+        if @auth_failures.value.positive? && @last_auth_failure_time
           backoff_seconds = [2**@auth_failures.value, MAX_AUTH_BACKOFF_SECONDS].min
           elapsed = Time.now - @last_auth_failure_time
           return [] if elapsed < backoff_seconds
@@ -208,10 +208,10 @@ module Conductor
 
         # Publish PollStarted event
         @event_dispatcher.publish(Events::PollStarted.new(
-          task_type: @worker.task_definition_name,
-          worker_id: @worker_id,
-          poll_count: @poll_count.value
-        ))
+                                    task_type: @worker.task_definition_name,
+                                    worker_id: @worker_id,
+                                    poll_count: @poll_count.value
+                                  ))
 
         start_time = Time.now
 
@@ -233,10 +233,10 @@ module Conductor
 
           # Publish PollCompleted event
           @event_dispatcher.publish(Events::PollCompleted.new(
-            task_type: @worker.task_definition_name,
-            duration_ms: duration_ms,
-            tasks_received: tasks.size
-          ))
+                                      task_type: @worker.task_definition_name,
+                                      duration_ms: duration_ms,
+                                      tasks_received: tasks.size
+                                    ))
 
           # Reset auth failures on success
           @auth_failures.value = 0
@@ -260,10 +260,10 @@ module Conductor
         duration_ms = (Time.now - start_time) * 1000
 
         @event_dispatcher.publish(Events::PollFailure.new(
-          task_type: @worker.task_definition_name,
-          duration_ms: duration_ms,
-          cause: error
-        ))
+                                    task_type: @worker.task_definition_name,
+                                    duration_ms: duration_ms,
+                                    cause: error
+                                  ))
 
         backoff = [2**@auth_failures.value, MAX_AUTH_BACKOFF_SECONDS].min
         @logger.warn("Auth failure ##{@auth_failures.value} for '#{@worker.task_definition_name}', " \
@@ -277,10 +277,10 @@ module Conductor
         duration_ms = (Time.now - start_time) * 1000
 
         @event_dispatcher.publish(Events::PollFailure.new(
-          task_type: @worker.task_definition_name,
-          duration_ms: duration_ms,
-          cause: error
-        ))
+                                    task_type: @worker.task_definition_name,
+                                    duration_ms: duration_ms,
+                                    cause: error
+                                  ))
 
         @logger.error("Poll failed for '#{@worker.task_definition_name}': #{error.message}")
       end
@@ -329,11 +329,11 @@ module Conductor
 
         # Publish TaskExecutionStarted
         @event_dispatcher.publish(Events::TaskExecutionStarted.new(
-          task_type: @worker.task_definition_name,
-          task_id: task_obj.task_id,
-          worker_id: @worker_id,
-          workflow_instance_id: task_obj.workflow_instance_id
-        ))
+                                    task_type: @worker.task_definition_name,
+                                    task_id: task_obj.task_id,
+                                    worker_id: @worker_id,
+                                    workflow_instance_id: task_obj.workflow_instance_id
+                                  ))
 
         begin
           # Execute worker
@@ -355,22 +355,19 @@ module Conductor
 
           # Publish TaskExecutionCompleted
           @event_dispatcher.publish(Events::TaskExecutionCompleted.new(
-            task_type: @worker.task_definition_name,
-            task_id: task_obj.task_id,
-            worker_id: @worker_id,
-            workflow_instance_id: task_obj.workflow_instance_id,
-            duration_ms: duration_ms,
-            output_size_bytes: output_size
-          ))
+                                      task_type: @worker.task_definition_name,
+                                      task_id: task_obj.task_id,
+                                      worker_id: @worker_id,
+                                      workflow_instance_id: task_obj.workflow_instance_id,
+                                      duration_ms: duration_ms,
+                                      output_size_bytes: output_size
+                                    ))
 
           task_result
-
         rescue NonRetryableError => e
           handle_non_retryable_error(task_obj, e, start_time)
-
         rescue StandardError => e
           handle_retryable_error(task_obj, e, start_time)
-
         ensure
           TaskContext.clear
         end
@@ -402,14 +399,14 @@ module Conductor
         task_result.log("NonRetryableError: #{error.class}: #{error.message}")
 
         @event_dispatcher.publish(Events::TaskExecutionFailure.new(
-          task_type: @worker.task_definition_name,
-          task_id: task.task_id,
-          worker_id: @worker_id,
-          workflow_instance_id: task.workflow_instance_id,
-          duration_ms: duration_ms,
-          cause: error,
-          is_retryable: false
-        ))
+                                    task_type: @worker.task_definition_name,
+                                    task_id: task.task_id,
+                                    worker_id: @worker_id,
+                                    workflow_instance_id: task.workflow_instance_id,
+                                    duration_ms: duration_ms,
+                                    cause: error,
+                                    is_retryable: false
+                                  ))
 
         @logger.warn("Task #{task.task_id} failed with terminal error: #{error.message}")
         task_result
@@ -432,14 +429,14 @@ module Conductor
         task_result.log("Error: #{error.class}: #{error.message}\n#{backtrace}")
 
         @event_dispatcher.publish(Events::TaskExecutionFailure.new(
-          task_type: @worker.task_definition_name,
-          task_id: task.task_id,
-          worker_id: @worker_id,
-          workflow_instance_id: task.workflow_instance_id,
-          duration_ms: duration_ms,
-          cause: error,
-          is_retryable: true
-        ))
+                                    task_type: @worker.task_definition_name,
+                                    task_id: task.task_id,
+                                    worker_id: @worker_id,
+                                    workflow_instance_id: task.workflow_instance_id,
+                                    duration_ms: duration_ms,
+                                    cause: error,
+                                    is_retryable: true
+                                  ))
 
         @logger.error("Task #{task.task_id} failed: #{error.message}")
         task_result
@@ -463,14 +460,14 @@ module Conductor
                             "Task #{task_result.task_id} result is LOST.")
 
               @event_dispatcher.publish(Events::TaskUpdateFailure.new(
-                task_type: @worker.task_definition_name,
-                task_id: task_result.task_id,
-                worker_id: @worker_id,
-                workflow_instance_id: task_result.workflow_instance_id,
-                cause: e,
-                retry_count: RETRY_BACKOFFS.size,
-                task_result: task_result
-              ))
+                                          task_type: @worker.task_definition_name,
+                                          task_id: task_result.task_id,
+                                          worker_id: @worker_id,
+                                          workflow_instance_id: task_result.workflow_instance_id,
+                                          cause: e,
+                                          retry_count: RETRY_BACKOFFS.size,
+                                          task_result: task_result
+                                        ))
             end
           end
         end
@@ -478,7 +475,7 @@ module Conductor
 
       # Register task definition if configured
       def register_task_definition
-        @logger.info("Task definition registration not yet implemented")
+        @logger.info('Task definition registration not yet implemented')
         # TODO: Implement task definition registration
       end
 

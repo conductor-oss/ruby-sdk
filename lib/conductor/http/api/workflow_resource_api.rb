@@ -345,7 +345,8 @@ module Conductor
         # @param [String] wait_until_task_ref Wait until task ref (optional)
         # @param [Integer] wait_for_seconds Wait time in seconds (default: 10)
         # @return [WorkflowRun]
-        def update_workflow_and_task_state(workflow_id, body, request_id: nil, wait_until_task_ref: nil, wait_for_seconds: 10)
+        def update_workflow_and_task_state(workflow_id, body, request_id: nil, wait_until_task_ref: nil,
+                                           wait_for_seconds: 10)
           query_params = { waitForSeconds: wait_for_seconds }
           query_params[:requestId] = request_id if request_id
           query_params[:waitUntilTaskRef] = wait_until_task_ref if wait_until_task_ref

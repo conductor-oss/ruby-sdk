@@ -15,8 +15,8 @@ require 'securerandom'
 
 RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
   let(:server_url) { ENV['CONDUCTOR_SERVER_URL'] || 'https://developer.orkescloud.com/api' }
-  let(:auth_key) { ENV['CONDUCTOR_AUTH_KEY'] }
-  let(:auth_secret) { ENV['CONDUCTOR_AUTH_SECRET'] }
+  let(:auth_key) { ENV.fetch('CONDUCTOR_AUTH_KEY', nil) }
+  let(:auth_secret) { ENV.fetch('CONDUCTOR_AUTH_SECRET', nil) }
   let(:test_id) { "ruby_sdk_test_#{SecureRandom.hex(4)}" }
 
   let(:configuration) do
@@ -31,11 +31,9 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
   # Helper to skip tests that hit free tier limits
   def skip_if_limit_reached(error)
-    if error.is_a?(Conductor::ApiError) && error.status == 402
-      skip "Orkes free tier limit reached: #{error.message}"
-    else
-      raise error
-    end
+    raise error unless error.is_a?(Conductor::ApiError) && error.status == 402
+
+    skip "Orkes free tier limit reached: #{error.message}"
   end
 
   describe 'OrkesClients factory' do
@@ -60,11 +58,10 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
     after do
       # Clean up: delete the test secret if it exists
-      begin
-        secret_client.delete_secret(secret_key)
-      rescue StandardError
-        # Ignore errors during cleanup
-      end
+
+      secret_client.delete_secret(secret_key)
+    rescue StandardError
+      # Ignore errors during cleanup
     end
 
     it 'performs CRUD operations on secrets' do
@@ -276,11 +273,10 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
     after do
       # Clean up workflow definition
-      begin
-        metadata_client.unregister_workflow_def(workflow_name, version: 1)
-      rescue StandardError
-        # Ignore cleanup errors
-      end
+
+      metadata_client.unregister_workflow_def(workflow_name, version: 1)
+    rescue StandardError
+      # Ignore cleanup errors
     end
 
     it 'registers and executes a simple workflow' do
@@ -329,12 +325,10 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
       workflow = workflow_client.get_workflow(workflow_id, include_tasks: true)
       expect(workflow).not_to be_nil
       status = workflow.is_a?(Hash) ? workflow['status'] : workflow.status
-      expect(['RUNNING', 'COMPLETED']).to include(status)
+      expect(%w[RUNNING COMPLETED]).to include(status)
 
       # Terminate if still running
-      if status == 'RUNNING'
-        workflow_client.terminate_workflow(workflow_id, reason: 'Test cleanup')
-      end
+      workflow_client.terminate_workflow(workflow_id, reason: 'Test cleanup') if status == 'RUNNING'
     rescue Conductor::ApiError => e
       skip_if_limit_reached(e)
     end
@@ -352,11 +346,9 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     let(:workflow_name) { "#{test_id}_dsl_workflow" }
 
     after do
-      begin
-        metadata_client.unregister_workflow_def(workflow_name, version: 1)
-      rescue StandardError
-        # Ignore cleanup errors
-      end
+      metadata_client.unregister_workflow_def(workflow_name, version: 1)
+    rescue StandardError
+      # Ignore cleanup errors
     end
 
     it 'creates and registers a workflow using the DSL' do

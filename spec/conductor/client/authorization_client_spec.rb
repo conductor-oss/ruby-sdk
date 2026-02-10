@@ -239,15 +239,15 @@ RSpec.describe Conductor::Client::AuthorizationClient do
 
   describe '#add_users_to_group' do
     it 'delegates to group_api' do
-      expect(group_api).to receive(:add_users_to_group).with('grp-1', ['u1', 'u2'])
-      client.add_users_to_group('grp-1', ['u1', 'u2'])
+      expect(group_api).to receive(:add_users_to_group).with('grp-1', %w[u1 u2])
+      client.add_users_to_group('grp-1', %w[u1 u2])
     end
   end
 
   describe '#remove_users_from_group' do
     it 'delegates to group_api' do
-      expect(group_api).to receive(:remove_users_from_group).with('grp-1', ['u1', 'u2'])
-      client.remove_users_from_group('grp-1', ['u1', 'u2'])
+      expect(group_api).to receive(:remove_users_from_group).with('grp-1', %w[u1 u2])
+      client.remove_users_from_group('grp-1', %w[u1 u2])
     end
   end
 
@@ -264,7 +264,7 @@ RSpec.describe Conductor::Client::AuthorizationClient do
     it 'constructs AuthorizationRequest and delegates' do
       subject = Conductor::Http::Models::SubjectRef.new(type: 'USER', id: 'u1')
       target = Conductor::Http::Models::TargetRef.new(type: 'WORKFLOW_DEF', id: 'wf1')
-      access = ['READ', 'EXECUTE']
+      access = %w[READ EXECUTE]
 
       expect(authorization_api).to receive(:grant_permissions) do |req|
         expect(req).to be_a(Conductor::Http::Models::AuthorizationRequest)

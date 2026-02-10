@@ -18,8 +18,8 @@ require 'securerandom'
 
 RSpec.describe 'Prompt API Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
   let(:server_url) { ENV['CONDUCTOR_SERVER_URL'] || 'https://developer.orkescloud.com/api' }
-  let(:auth_key) { ENV['CONDUCTOR_AUTH_KEY'] }
-  let(:auth_secret) { ENV['CONDUCTOR_AUTH_SECRET'] }
+  let(:auth_key) { ENV.fetch('CONDUCTOR_AUTH_KEY', nil) }
+  let(:auth_secret) { ENV.fetch('CONDUCTOR_AUTH_SECRET', nil) }
   let(:test_id) { "ruby_sdk_prompt_#{SecureRandom.hex(4)}" }
 
   let(:configuration) do
@@ -37,11 +37,9 @@ RSpec.describe 'Prompt API Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
   # Helper to skip tests that hit free tier limits
   def skip_if_limit_reached(error)
-    if error.is_a?(Conductor::ApiError) && error.status == 402
-      skip "Orkes free tier limit reached: #{error.message}"
-    else
-      raise error
-    end
+    raise error unless error.is_a?(Conductor::ApiError) && error.status == 402
+
+    skip "Orkes free tier limit reached: #{error.message}"
   end
 
   describe 'Prompt CRUD Operations' do
@@ -58,11 +56,10 @@ RSpec.describe 'Prompt API Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
     after do
       # Clean up prompt
-      begin
-        prompt_api.delete_prompt(prompt_name)
-      rescue StandardError
-        # Ignore cleanup errors
-      end
+
+      prompt_api.delete_prompt(prompt_name)
+    rescue StandardError
+      # Ignore cleanup errors
     end
 
     it '1. save_prompt - creates a new prompt template' do
@@ -181,23 +178,20 @@ RSpec.describe 'Prompt API Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
     before do
       # Create a prompt for testing tags
-      begin
-        prompt_api.save_prompt(
-          prompt_name,
-          prompt_template,
-          description: 'Prompt for tag testing'
-        )
-      rescue Conductor::ApiError => e
-        skip_if_limit_reached(e)
-      end
+
+      prompt_api.save_prompt(
+        prompt_name,
+        prompt_template,
+        description: 'Prompt for tag testing'
+      )
+    rescue Conductor::ApiError => e
+      skip_if_limit_reached(e)
     end
 
     after do
-      begin
-        prompt_api.delete_prompt(prompt_name)
-      rescue StandardError
-        # Ignore cleanup errors
-      end
+      prompt_api.delete_prompt(prompt_name)
+    rescue StandardError
+      # Ignore cleanup errors
     end
 
     it '6. update_tag_for_prompt_template - sets tags on a prompt' do
@@ -234,11 +228,11 @@ RSpec.describe 'Prompt API Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
       expect(retrieved_tags).to be_an(Array)
       expect(retrieved_tags).not_to be_empty
 
-      tag_map = retrieved_tags.map do |t|
+      tag_map = retrieved_tags.to_h do |t|
         key = t.is_a?(Hash) ? t['key'] : t.key
         value = t.is_a?(Hash) ? t['value'] : t.value
         [key, value]
-      end.to_h
+      end
 
       expect(tag_map['category']).to eq('test')
       expect(tag_map['version']).to eq('1.0')
@@ -299,11 +293,9 @@ RSpec.describe 'Prompt API Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     end
 
     after do
-      begin
-        prompt_api.delete_prompt(prompt_name)
-      rescue StandardError
-        # Ignore cleanup errors
-      end
+      prompt_api.delete_prompt(prompt_name)
+    rescue StandardError
+      # Ignore cleanup errors
     end
 
     it '8. test_prompt - tests prompt variable substitution' do
@@ -340,11 +332,9 @@ RSpec.describe 'Prompt API Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     let(:prompt_name) { "#{test_id}_advanced_prompt" }
 
     after do
-      begin
-        prompt_api.delete_prompt(prompt_name)
-      rescue StandardError
-        # Ignore cleanup errors
-      end
+      prompt_api.delete_prompt(prompt_name)
+    rescue StandardError
+      # Ignore cleanup errors
     end
 
     it 'creates prompt with multiple variables' do

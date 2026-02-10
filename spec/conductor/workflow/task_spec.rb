@@ -41,9 +41,9 @@ RSpec.describe Conductor::Workflow::TaskInterface do
 
       expect(result).to eq(task)
       expect(task.input_parameters).to eq({
-        'key1' => 'value1',
-        'key2' => '${workflow.input.data}'
-      })
+                                            'key1' => 'value1',
+                                            'key2' => '${workflow.input.data}'
+                                          })
     end
   end
 

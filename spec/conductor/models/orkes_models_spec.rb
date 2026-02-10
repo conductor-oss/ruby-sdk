@@ -56,19 +56,19 @@ RSpec.describe Conductor::Orkes::Models::AccessKey do
   end
 
   it 'serializes to hash with camelCase keys' do
-    key = described_class.new(id: 'key-789', status: 'ACTIVE', created_at: 1700000000)
+    key = described_class.new(id: 'key-789', status: 'ACTIVE', created_at: 1_700_000_000)
     hash = key.to_h
     expect(hash['id']).to eq('key-789')
     expect(hash['status']).to eq('ACTIVE')
-    expect(hash['createdAt']).to eq(1700000000)
+    expect(hash['createdAt']).to eq(1_700_000_000)
   end
 
   it 'deserializes from hash with camelCase keys' do
-    hash = { 'id' => 'key-abc', 'status' => 'INACTIVE', 'createdAt' => 1700000000 }
+    hash = { 'id' => 'key-abc', 'status' => 'INACTIVE', 'createdAt' => 1_700_000_000 }
     key = described_class.from_hash(hash)
     expect(key.id).to eq('key-abc')
     expect(key.status).to eq('INACTIVE')
-    expect(key.created_at).to eq(1700000000)
+    expect(key.created_at).to eq(1_700_000_000)
   end
 end
 
@@ -110,9 +110,9 @@ RSpec.describe Conductor::Orkes::Models::GrantedPermission do
       type: Conductor::Http::Models::TargetType::WORKFLOW_DEF,
       id: 'my_workflow'
     )
-    perm = described_class.new(target: target, access: ['READ', 'EXECUTE'])
+    perm = described_class.new(target: target, access: %w[READ EXECUTE])
     expect(perm.target).to eq(target)
-    expect(perm.access).to eq(['READ', 'EXECUTE'])
+    expect(perm.access).to eq(%w[READ EXECUTE])
   end
 
   it 'serializes with nested target' do

@@ -71,7 +71,7 @@ RSpec.describe Conductor::Workflow::ConductorWorkflow do
     end
 
     it 'supports input_parameters' do
-      result = workflow.input_parameters(['param1', 'param2'])
+      result = workflow.input_parameters(%w[param1 param2])
       expect(result).to eq(workflow)
     end
 

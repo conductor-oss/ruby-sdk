@@ -29,8 +29,8 @@ require 'securerandom'
 
 RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
   let(:server_url) { ENV['CONDUCTOR_SERVER_URL'] || 'https://developer.orkescloud.com/api' }
-  let(:auth_key) { ENV['CONDUCTOR_AUTH_KEY'] }
-  let(:auth_secret) { ENV['CONDUCTOR_AUTH_SECRET'] }
+  let(:auth_key) { ENV.fetch('CONDUCTOR_AUTH_KEY', nil) }
+  let(:auth_secret) { ENV.fetch('CONDUCTOR_AUTH_SECRET', nil) }
   let(:test_id) { "ruby_sdk_sched_#{SecureRandom.hex(4)}" }
 
   let(:configuration) do
@@ -51,11 +51,9 @@ RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
   # Helper to skip tests that hit free tier limits
   def skip_if_limit_reached(error)
-    if error.is_a?(Conductor::ApiError) && error.status == 402
-      skip "Orkes free tier limit reached: #{error.message}"
-    else
-      raise error
-    end
+    raise error unless error.is_a?(Conductor::ApiError) && error.status == 402
+
+    skip "Orkes free tier limit reached: #{error.message}"
   end
 
   # Helper to get attribute from schedule object or hash
@@ -116,11 +114,10 @@ RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
     after do
       # Cleanup created schedule
-      begin
-        scheduler_client.delete_schedule(schedule_name)
-      rescue StandardError
-        # Ignore cleanup errors
-      end
+
+      scheduler_client.delete_schedule(schedule_name)
+    rescue StandardError
+      # Ignore cleanup errors
     end
 
     it '1. save_schedule - creates a new schedule' do
@@ -329,11 +326,9 @@ RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     end
 
     after do
-      begin
-        scheduler_client.delete_schedule(schedule_name)
-      rescue StandardError
-        # Ignore cleanup errors
-      end
+      scheduler_client.delete_schedule(schedule_name)
+    rescue StandardError
+      # Ignore cleanup errors
     end
 
     it '5. pause_schedule - pauses a specific schedule' do
@@ -412,11 +407,9 @@ RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
     after do
       [schedule1, schedule2].each do |name|
-        begin
-          scheduler_client.delete_schedule(name)
-        rescue StandardError
-          # Ignore cleanup errors
-        end
+        scheduler_client.delete_schedule(name)
+      rescue StandardError
+        # Ignore cleanup errors
       end
       # Resume all schedules to not affect other users
       begin
@@ -427,7 +420,7 @@ RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     end
 
     it '7. pause_all_schedules - pauses all schedules' do
-      # Note: This admin operation may require special permissions in Orkes Cloud
+      # NOTE: This admin operation may require special permissions in Orkes Cloud
       # and may not affect all schedules in all environments
 
       # Verify schedules exist first
@@ -438,12 +431,8 @@ RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
       # Ensure schedules are not paused - only call resume if they ARE paused
       # (resume returns 404 if schedule is not paused)
-      if get_schedule_attr(sched1, 'paused')
-        scheduler_client.resume_schedule(schedule1)
-      end
-      if get_schedule_attr(sched2, 'paused')
-        scheduler_client.resume_schedule(schedule2)
-      end
+      scheduler_client.resume_schedule(schedule1) if get_schedule_attr(sched1, 'paused')
+      scheduler_client.resume_schedule(schedule2) if get_schedule_attr(sched2, 'paused')
 
       # Verify they're not paused before testing pause_all
       sched1 = scheduler_client.get_schedule(schedule1)
@@ -479,18 +468,14 @@ RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     end
 
     it '8. resume_all_schedules - resumes all schedules' do
-      # Note: This admin operation may require special permissions in Orkes Cloud
+      # NOTE: This admin operation may require special permissions in Orkes Cloud
 
       # First pause using individual API (more reliable)
       # Only pause if not already paused (pause returns 404 if already paused)
       sched1 = scheduler_client.get_schedule(schedule1)
       sched2 = scheduler_client.get_schedule(schedule2)
-      unless get_schedule_attr(sched1, 'paused')
-        scheduler_client.pause_schedule(schedule1)
-      end
-      unless get_schedule_attr(sched2, 'paused')
-        scheduler_client.pause_schedule(schedule2)
-      end
+      scheduler_client.pause_schedule(schedule1) unless get_schedule_attr(sched1, 'paused')
+      scheduler_client.pause_schedule(schedule2) unless get_schedule_attr(sched2, 'paused')
 
       # Verify they're paused before testing resume_all
       sched1 = scheduler_client.get_schedule(schedule1)
@@ -695,11 +680,9 @@ RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     end
 
     after do
-      begin
-        scheduler_client.delete_schedule(schedule_name)
-      rescue StandardError
-        # Ignore cleanup errors
-      end
+      scheduler_client.delete_schedule(schedule_name)
+    rescue StandardError
+      # Ignore cleanup errors
     end
 
     it '12. set_scheduler_tags - sets tags on a schedule' do
@@ -740,11 +723,11 @@ RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
       expect(retrieved_tags).not_to be_empty
 
       # Verify specific tags
-      tag_map = retrieved_tags.map do |t|
+      tag_map = retrieved_tags.to_h do |t|
         key = t.is_a?(Hash) ? t['key'] : t.key
         value = t.is_a?(Hash) ? t['value'] : t.value
         [key, value]
-      end.to_h
+      end
 
       expect(tag_map['app']).to eq('conductor')
       expect(tag_map['version']).to eq('1.0')
@@ -789,34 +772,31 @@ RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
     before do
       # Ensure the test workflow exists
-      begin
-        workflow_def = Conductor::Http::Models::WorkflowDef.new(
-          name: "#{test_id}_scheduled_workflow",
-          version: 1,
-          description: 'Test workflow for scheduler integration tests',
-          tasks: [
-            Conductor::Http::Models::WorkflowTask.new(
-              name: 'test_task',
-              task_reference_name: 'test_task_ref',
-              type: 'SET_VARIABLE',
-              input_parameters: { 'scheduled' => true }
-            )
-          ],
-          schema_version: 2,
-          restartable: true
-        )
-        metadata_client.register_workflow_def(workflow_def, overwrite: true)
-      rescue Conductor::ApiError
-        # Workflow may already exist
-      end
+
+      workflow_def = Conductor::Http::Models::WorkflowDef.new(
+        name: "#{test_id}_scheduled_workflow",
+        version: 1,
+        description: 'Test workflow for scheduler integration tests',
+        tasks: [
+          Conductor::Http::Models::WorkflowTask.new(
+            name: 'test_task',
+            task_reference_name: 'test_task_ref',
+            type: 'SET_VARIABLE',
+            input_parameters: { 'scheduled' => true }
+          )
+        ],
+        schema_version: 2,
+        restartable: true
+      )
+      metadata_client.register_workflow_def(workflow_def, overwrite: true)
+    rescue Conductor::ApiError
+      # Workflow may already exist
     end
 
     after do
-      begin
-        scheduler_client.delete_schedule(schedule_name)
-      rescue StandardError
-        # Ignore cleanup errors
-      end
+      scheduler_client.delete_schedule(schedule_name)
+    rescue StandardError
+      # Ignore cleanup errors
     end
 
     it 'creates a time-limited schedule (campaign pattern)' do

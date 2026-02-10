@@ -167,12 +167,10 @@ class MetadataJourney
 
     # Delete tasks
     @created_tasks&.each do |name|
-      begin
-        @metadata.unregister_task_def(name)
-        puts "Deleted task: #{name}"
-      rescue StandardError => e
-        puts "Could not delete #{name}: #{e.message}"
-      end
+      @metadata.unregister_task_def(name)
+      puts "Deleted task: #{name}"
+    rescue StandardError => e
+      puts "Could not delete #{name}: #{e.message}"
     end
 
     puts "\nMetadata journey complete!"

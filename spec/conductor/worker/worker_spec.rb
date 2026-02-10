@@ -50,7 +50,7 @@ RSpec.describe Conductor::Worker::Worker do
 
         expect(result).to be_a(Conductor::Http::Models::TaskResult)
         expect(result.status).to eq(Conductor::Http::Models::TaskResultStatus::COMPLETED)
-        expect(result.output_data).to eq(greeting: "Hello Alice")
+        expect(result.output_data).to eq(greeting: 'Hello Alice')
         expect(result.task_id).to eq('task-123')
       end
     end

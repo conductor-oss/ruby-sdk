@@ -27,11 +27,11 @@ RSpec.describe Conductor::Client::PromptClient do
       expect(prompt_api).to receive(:save_prompt).with(
         'p1', 'template text',
         description: 'desc',
-        models: ['gpt-4', 'claude'],
+        models: %w[gpt-4 claude],
         version: 2,
         auto_increment: true
       )
-      client.save_prompt('p1', 'desc', 'template text', models: ['gpt-4', 'claude'], version: 2, auto_increment: true)
+      client.save_prompt('p1', 'desc', 'template text', models: %w[gpt-4 claude], version: 2, auto_increment: true)
     end
   end
 
@@ -100,11 +100,11 @@ RSpec.describe Conductor::Client::PromptClient do
       expect(prompt_api).to receive(:test_prompt) do |req|
         expect(req.temperature).to eq(0.7)
         expect(req.top_p).to eq(0.5)
-        expect(req.stop_words).to eq(['STOP', 'END'])
+        expect(req.stop_words).to eq(%w[STOP END])
       end
 
       client.test_prompt('test', {}, 'openai', 'gpt-4',
-                         temperature: 0.7, top_p: 0.5, stop_words: ['STOP', 'END'])
+                         temperature: 0.7, top_p: 0.5, stop_words: %w[STOP END])
     end
   end
 end

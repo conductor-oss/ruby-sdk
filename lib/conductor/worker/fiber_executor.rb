@@ -72,11 +72,9 @@ module Conductor
       def wait_for_completion(timeout: nil)
         cleanup_completed_fibers
         @running_fibers.each do |fiber|
-          begin
-            fiber.wait
-          rescue StandardError
-            # Ignore errors during wait
-          end
+          fiber.wait
+        rescue StandardError
+          # Ignore errors during wait
         end
         @running_fibers.clear
       end
@@ -96,11 +94,9 @@ module Conductor
       def shutdown
         @shutdown = true
         @running_fibers.each do |fiber|
-          begin
-            fiber.stop
-          rescue StandardError
-            # Ignore errors during shutdown
-          end
+          fiber.stop
+        rescue StandardError
+          # Ignore errors during shutdown
         end
         @running_fibers.clear
       end
@@ -162,7 +158,7 @@ module Conductor
           extract_worker_options(worker)
         )
         @poll_interval = resolved[:poll_interval]
-        @max_workers = resolved[:thread_count]  # thread_count becomes fiber concurrency
+        @max_workers = resolved[:thread_count] # thread_count becomes fiber concurrency
         @worker_id = resolved[:worker_id]
         @domain = resolved[:domain]
         @poll_timeout = resolved[:poll_timeout]
@@ -202,7 +198,7 @@ module Conductor
         end
 
         cleanup
-        @logger.info("FiberTaskRunner stopped")
+        @logger.info('FiberTaskRunner stopped')
       end
 
       # Single iteration
@@ -214,7 +210,7 @@ module Conductor
         available_slots = @max_workers - executor.running_count
 
         # Adaptive backoff
-        if @consecutive_empty_polls > 0
+        if @consecutive_empty_polls.positive?
           backoff_ms = calculate_adaptive_backoff
           elapsed_ms = @last_poll_time ? (Time.now - @last_poll_time) * 1000 : backoff_ms
           return if elapsed_ms < backoff_ms
@@ -250,7 +246,7 @@ module Conductor
 
       def extract_worker_options(worker)
         options = {}
-        Worker::DEFAULTS.keys.each do |key|
+        Worker::DEFAULTS.each_key do |key|
           options[key] = worker.send(key) if worker.respond_to?(key)
         end
         options
@@ -264,17 +260,17 @@ module Conductor
       def batch_poll(count)
         return [] if @worker.paused
 
-        if @auth_failures > 0 && @last_auth_failure_time
+        if @auth_failures.positive? && @last_auth_failure_time
           backoff_seconds = [2**@auth_failures, MAX_AUTH_BACKOFF_SECONDS].min
           elapsed = Time.now - @last_auth_failure_time
           return [] if elapsed < backoff_seconds
         end
 
         @event_dispatcher.publish(Events::PollStarted.new(
-          task_type: @worker.task_definition_name,
-          worker_id: @worker_id,
-          poll_count: @poll_count
-        ))
+                                    task_type: @worker.task_definition_name,
+                                    worker_id: @worker_id,
+                                    poll_count: @poll_count
+                                  ))
 
         start_time = Time.now
 
@@ -294,10 +290,10 @@ module Conductor
           @poll_count += 1
 
           @event_dispatcher.publish(Events::PollCompleted.new(
-            task_type: @worker.task_definition_name,
-            duration_ms: duration_ms,
-            tasks_received: tasks.size
-          ))
+                                      task_type: @worker.task_definition_name,
+                                      duration_ms: duration_ms,
+                                      tasks_received: tasks.size
+                                    ))
 
           @auth_failures = 0
           tasks
@@ -305,17 +301,17 @@ module Conductor
           @auth_failures += 1
           @last_auth_failure_time = Time.now
           @event_dispatcher.publish(Events::PollFailure.new(
-            task_type: @worker.task_definition_name,
-            duration_ms: (Time.now - start_time) * 1000,
-            cause: e
-          ))
+                                      task_type: @worker.task_definition_name,
+                                      duration_ms: (Time.now - start_time) * 1000,
+                                      cause: e
+                                    ))
           []
         rescue StandardError => e
           @event_dispatcher.publish(Events::PollFailure.new(
-            task_type: @worker.task_definition_name,
-            duration_ms: (Time.now - start_time) * 1000,
-            cause: e
-          ))
+                                      task_type: @worker.task_definition_name,
+                                      duration_ms: (Time.now - start_time) * 1000,
+                                      cause: e
+                                    ))
           []
         end
       end
@@ -343,11 +339,11 @@ module Conductor
         start_time = Time.now
 
         @event_dispatcher.publish(Events::TaskExecutionStarted.new(
-          task_type: @worker.task_definition_name,
-          task_id: task_obj.task_id,
-          worker_id: @worker_id,
-          workflow_instance_id: task_obj.workflow_instance_id
-        ))
+                                    task_type: @worker.task_definition_name,
+                                    task_id: task_obj.task_id,
+                                    worker_id: @worker_id,
+                                    workflow_instance_id: task_obj.workflow_instance_id
+                                  ))
 
         begin
           task_result = @worker.execute(task_obj)
@@ -360,25 +356,26 @@ module Conductor
           end
           task_result.callback_after_seconds ||= ctx&.callback_after_seconds
 
-          output_size = task_result.output_data.to_json.bytesize rescue 0
+          output_size = begin
+            task_result.output_data.to_json.bytesize
+          rescue StandardError
+            0
+          end
 
           @event_dispatcher.publish(Events::TaskExecutionCompleted.new(
-            task_type: @worker.task_definition_name,
-            task_id: task_obj.task_id,
-            worker_id: @worker_id,
-            workflow_instance_id: task_obj.workflow_instance_id,
-            duration_ms: duration_ms,
-            output_size_bytes: output_size
-          ))
+                                      task_type: @worker.task_definition_name,
+                                      task_id: task_obj.task_id,
+                                      worker_id: @worker_id,
+                                      workflow_instance_id: task_obj.workflow_instance_id,
+                                      duration_ms: duration_ms,
+                                      output_size_bytes: output_size
+                                    ))
 
           task_result
-
         rescue NonRetryableError => e
           handle_execution_error(task_obj, e, start_time, retryable: false)
-
         rescue StandardError => e
           handle_execution_error(task_obj, e, start_time, retryable: true)
-
         ensure
           clear_fiber_context
         end
@@ -425,14 +422,14 @@ module Conductor
         task_result.log("Error: #{error.class}: #{error.message}")
 
         @event_dispatcher.publish(Events::TaskExecutionFailure.new(
-          task_type: @worker.task_definition_name,
-          task_id: task.task_id,
-          worker_id: @worker_id,
-          workflow_instance_id: task.workflow_instance_id,
-          duration_ms: duration_ms,
-          cause: error,
-          is_retryable: retryable
-        ))
+                                    task_type: @worker.task_definition_name,
+                                    task_id: task.task_id,
+                                    worker_id: @worker_id,
+                                    workflow_instance_id: task.workflow_instance_id,
+                                    duration_ms: duration_ms,
+                                    cause: error,
+                                    is_retryable: retryable
+                                  ))
 
         task_result
       end
@@ -449,14 +446,14 @@ module Conductor
 
             if attempt == RETRY_BACKOFFS.size - 1
               @event_dispatcher.publish(Events::TaskUpdateFailure.new(
-                task_type: @worker.task_definition_name,
-                task_id: task_result.task_id,
-                worker_id: @worker_id,
-                workflow_instance_id: task_result.workflow_instance_id,
-                cause: e,
-                retry_count: RETRY_BACKOFFS.size,
-                task_result: task_result
-              ))
+                                          task_type: @worker.task_definition_name,
+                                          task_id: task_result.task_id,
+                                          worker_id: @worker_id,
+                                          workflow_instance_id: task_result.workflow_instance_id,
+                                          cause: e,
+                                          retry_count: RETRY_BACKOFFS.size,
+                                          task_result: task_result
+                                        ))
             end
           end
         end

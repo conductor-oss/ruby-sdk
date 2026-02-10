@@ -15,17 +15,20 @@ module Conductor
 
         # Create or update a user
         def upsert_user(body, id)
-          @api_client.call_api('/users/{id}', 'PUT', path_params: { id: id }, body: body, return_type: 'ConductorUser', return_http_data_only: true)
+          @api_client.call_api('/users/{id}', 'PUT', path_params: { id: id }, body: body, return_type: 'ConductorUser',
+                                                     return_http_data_only: true)
         end
 
         # Get a user by ID
         def get_user(id)
-          @api_client.call_api('/users/{id}', 'GET', path_params: { id: id }, return_type: 'ConductorUser', return_http_data_only: true)
+          @api_client.call_api('/users/{id}', 'GET', path_params: { id: id }, return_type: 'ConductorUser',
+                                                     return_http_data_only: true)
         end
 
         # List all users
         def list_users(apps: false)
-          @api_client.call_api('/users', 'GET', query_params: { apps: apps }, return_type: 'Array<ConductorUser>', return_http_data_only: true)
+          @api_client.call_api('/users', 'GET', query_params: { apps: apps }, return_type: 'Array<ConductorUser>',
+                                                return_http_data_only: true)
         end
 
         # Delete a user
@@ -47,7 +50,8 @@ module Conductor
 
         # Get granted permissions for a user
         def get_granted_permissions(user_id)
-          @api_client.call_api('/users/{userId}/permissions', 'GET', path_params: { userId: user_id }, return_type: 'Object', return_http_data_only: true)
+          @api_client.call_api('/users/{userId}/permissions', 'GET', path_params: { userId: user_id },
+                                                                     return_type: 'Object', return_http_data_only: true)
         end
       end
     end

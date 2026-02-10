@@ -166,9 +166,7 @@ module Conductor
 
     # Set the default configuration
     # @param [Conductor::Configuration] configuration The configuration to set
-    def config=(configuration)
-      @config = configuration
-    end
+    attr_writer :config
 
     # Configure Conductor with a block
     # @yield [Conductor::Configuration] The configuration object

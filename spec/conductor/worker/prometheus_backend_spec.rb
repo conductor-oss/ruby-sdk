@@ -46,37 +46,37 @@ if PROMETHEUS_BACKEND_LOADED
 
     describe '#increment' do
       it 'increments a counter' do
-        expect {
+        expect do
           backend.increment('task_poll_total', labels: { task_type: 'my_task' })
-        }.not_to raise_error
+        end.not_to raise_error
       end
 
       it 'increments by a custom value' do
-        expect {
+        expect do
           backend.increment('task_poll_total', labels: { task_type: 'my_task' }, value: 5)
-        }.not_to raise_error
+        end.not_to raise_error
       end
     end
 
     describe '#observe' do
       it 'observes a histogram value' do
-        expect {
+        expect do
           backend.observe('task_poll_time_seconds', 0.5, labels: { task_type: 'my_task' })
-        }.not_to raise_error
+        end.not_to raise_error
       end
 
       it 'observes size metrics' do
-        expect {
+        expect do
           backend.observe('task_result_size_bytes', 1024, labels: { task_type: 'my_task' })
-        }.not_to raise_error
+        end.not_to raise_error
       end
     end
 
     describe '#set' do
       it 'sets a gauge value' do
-        expect {
+        expect do
           backend.set('active_workers', 5, labels: { task_type: 'my_task' })
-        }.not_to raise_error
+        end.not_to raise_error
       end
     end
   end
@@ -92,7 +92,7 @@ if PROMETHEUS_BACKEND_LOADED
       expect(server.port).to eq(9091)
     end
 
-    # Note: Actually starting/stopping the server in tests can be flaky
+    # NOTE: Actually starting/stopping the server in tests can be flaky
     # due to port binding issues. These are integration tests.
   end
 else

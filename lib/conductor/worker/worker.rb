@@ -114,10 +114,10 @@ module Conductor
         first_param_type, first_param_name = params.first
 
         # If it's a positional arg (required or optional), assume it takes task
-        return true if [:req, :opt, :rest].include?(first_param_type)
+        return true if %i[req opt rest].include?(first_param_type)
 
         # If it's a keyword arg named 'task', it takes task
-        return true if first_param_name == :task && [:keyreq, :key].include?(first_param_type)
+        return true if first_param_name == :task && %i[keyreq key].include?(first_param_type)
 
         # Otherwise, it uses keyword args from input_data
         false
@@ -152,14 +152,11 @@ module Conductor
 
           case type
           when :keyreq # Required keyword arg
-            if input_data.key?(key)
-              kwargs[sym_key] = input_data[key]
-            elsif input_data.key?(sym_key)
-              kwargs[sym_key] = input_data[sym_key]
-            else
-              # Missing required argument - let it raise an error
-              kwargs[sym_key] = nil
-            end
+            kwargs[sym_key] = if input_data.key?(key)
+                                input_data[key]
+                              elsif input_data.key?(sym_key)
+                                input_data[sym_key]
+                              end
           when :key # Optional keyword arg
             if input_data.key?(key)
               kwargs[sym_key] = input_data[key]
@@ -268,7 +265,7 @@ module Conductor
         end
 
         # Configuration readers
-        Worker::DEFAULTS.keys.each do |key|
+        Worker::DEFAULTS.each_key do |key|
           define_method(key) do
             instance_variable_get("@#{key}") || Worker::DEFAULTS[key]
           end

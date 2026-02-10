@@ -38,9 +38,7 @@ module Conductor
           }
           result['media'] = @media if @media && !@media.empty?
           result['mimeType'] = @mime_type if @mime_type
-          if @tool_calls && !@tool_calls.empty?
-            result['toolCalls'] = @tool_calls.map(&:to_h)
-          end
+          result['toolCalls'] = @tool_calls.map(&:to_h) if @tool_calls && !@tool_calls.empty?
           result
         end
       end

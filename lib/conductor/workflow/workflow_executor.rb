@@ -263,7 +263,7 @@ module Conductor
       # @param [Boolean] include_tasks Include task details (default: false)
       # @return [Hash<String, Array<Workflow>>] Map of correlation ID to workflows
       def get_by_correlation_ids(workflow_name, correlation_ids, include_closed: false, include_tasks: false)
-        # Note: This would require a batch API endpoint; for now, iterate
+        # NOTE: This would require a batch API endpoint; for now, iterate
         result = {}
         correlation_ids.each do |correlation_id|
           result[correlation_id] = get_by_correlation_id(
@@ -293,9 +293,7 @@ module Conductor
           workflow = get_workflow(workflow_id, include_tasks: false)
           return workflow if workflow.terminal?
 
-          if Time.now >= deadline
-            raise Timeout::Error, "Workflow #{workflow_id} did not complete within #{timeout_seconds} seconds"
-          end
+          raise Timeout::Error, "Workflow #{workflow_id} did not complete within #{timeout_seconds} seconds" if Time.now >= deadline
 
           sleep(poll_interval_seconds)
         end

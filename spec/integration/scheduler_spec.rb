@@ -4,12 +4,12 @@ require 'spec_helper'
 require 'securerandom'
 
 # Scheduler integration tests - run with:
-# ORKES_INTEGRATION=true bundle exec rspec spec/integration/scheduler_spec.rb --format documentation
+# CONDUCTOR_INTEGRATION=true bundle exec rspec spec/integration/scheduler_spec.rb --format documentation
 #
-# These tests require Orkes Conductor credentials set via environment variables:
-# - ORKES_SERVER_URL
-# - ORKES_AUTH_KEY
-# - ORKES_AUTH_SECRET
+# These tests require Conductor credentials set via environment variables:
+# - CONDUCTOR_SERVER_URL
+# - CONDUCTOR_AUTH_KEY
+# - CONDUCTOR_AUTH_SECRET
 #
 # APIs covered:
 # 1. save_schedule - Create/update schedules
@@ -27,10 +27,10 @@ require 'securerandom'
 # 13. get_scheduler_tags - Get schedule tags
 # 14. delete_scheduler_tags - Remove schedule tags
 
-RSpec.describe 'Scheduler Integration', skip: !ENV['ORKES_INTEGRATION'] do
-  let(:server_url) { ENV['ORKES_SERVER_URL'] || 'https://developer.orkescloud.com/api' }
-  let(:auth_key) { ENV['ORKES_AUTH_KEY'] }
-  let(:auth_secret) { ENV['ORKES_AUTH_SECRET'] }
+RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
+  let(:server_url) { ENV['CONDUCTOR_SERVER_URL'] || 'https://developer.orkescloud.com/api' }
+  let(:auth_key) { ENV['CONDUCTOR_AUTH_KEY'] }
+  let(:auth_secret) { ENV['CONDUCTOR_AUTH_SECRET'] }
   let(:test_id) { "ruby_sdk_sched_#{SecureRandom.hex(4)}" }
 
   let(:configuration) do

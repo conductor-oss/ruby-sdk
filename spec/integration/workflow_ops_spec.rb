@@ -4,7 +4,7 @@ require 'spec_helper'
 require 'securerandom'
 
 # Workflow Operations integration tests - run with:
-# ORKES_INTEGRATION=true bundle exec rspec spec/integration/workflow_ops_spec.rb --format documentation
+# CONDUCTOR_INTEGRATION=true bundle exec rspec spec/integration/workflow_ops_spec.rb --format documentation
 #
 # These tests cover additional workflow operations not in the basic workflow_spec.rb:
 # - restart, retry, rerun (single workflow)
@@ -18,10 +18,10 @@ require 'securerandom'
 # - skip_task_from_workflow
 # - get_workflows_batch
 
-RSpec.describe 'Workflow Operations Integration', skip: !ENV['ORKES_INTEGRATION'] do
-  let(:server_url) { ENV['ORKES_SERVER_URL'] || 'https://developer.orkescloud.com/api' }
-  let(:auth_key) { ENV['ORKES_AUTH_KEY'] }
-  let(:auth_secret) { ENV['ORKES_AUTH_SECRET'] }
+RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
+  let(:server_url) { ENV['CONDUCTOR_SERVER_URL'] || 'https://developer.orkescloud.com/api' }
+  let(:auth_key) { ENV['CONDUCTOR_AUTH_KEY'] }
+  let(:auth_secret) { ENV['CONDUCTOR_AUTH_SECRET'] }
   let(:test_id) { "ruby_sdk_wfops_#{SecureRandom.hex(4)}" }
 
   let(:configuration) do

@@ -4,12 +4,12 @@ require 'spec_helper'
 require 'securerandom'
 
 # Event Handler integration tests - run with:
-# ORKES_INTEGRATION=true bundle exec rspec spec/integration/event_spec.rb --format documentation
+# CONDUCTOR_INTEGRATION=true bundle exec rspec spec/integration/event_spec.rb --format documentation
 #
-# These tests require Orkes Conductor credentials set via environment variables:
-# - ORKES_SERVER_URL
-# - ORKES_AUTH_KEY
-# - ORKES_AUTH_SECRET
+# These tests require Conductor credentials set via environment variables:
+# - CONDUCTOR_SERVER_URL
+# - CONDUCTOR_AUTH_KEY
+# - CONDUCTOR_AUTH_SECRET
 #
 # APIs covered:
 # 1. add_event_handler - Create event handler
@@ -22,10 +22,10 @@ require 'securerandom'
 # 8. put_queue_config - Create/update queue configuration
 # 9. delete_queue_config - Delete queue configuration
 
-RSpec.describe 'Event Handler Integration', skip: !ENV['ORKES_INTEGRATION'] do
-  let(:server_url) { ENV['ORKES_SERVER_URL'] || 'https://developer.orkescloud.com/api' }
-  let(:auth_key) { ENV['ORKES_AUTH_KEY'] }
-  let(:auth_secret) { ENV['ORKES_AUTH_SECRET'] }
+RSpec.describe 'Event Handler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
+  let(:server_url) { ENV['CONDUCTOR_SERVER_URL'] || 'https://developer.orkescloud.com/api' }
+  let(:auth_key) { ENV['CONDUCTOR_AUTH_KEY'] }
+  let(:auth_secret) { ENV['CONDUCTOR_AUTH_SECRET'] }
   let(:test_id) { "ruby_sdk_event_#{SecureRandom.hex(4)}" }
 
   let(:configuration) do

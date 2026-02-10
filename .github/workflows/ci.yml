@@ -102,12 +102,12 @@ jobs:
         run: bundle install
 
       - name: Run integration tests
-        if: env.ORKES_SERVER_URL != ''
+        if: env.CONDUCTOR_SERVER_URL != ''
         env:
-          ORKES_INTEGRATION: 'true'
-          ORKES_SERVER_URL: ${{ secrets.ORKES_SERVER_URL }}
-          ORKES_AUTH_KEY: ${{ secrets.ORKES_AUTH_KEY }}
-          ORKES_AUTH_SECRET: ${{ secrets.ORKES_AUTH_SECRET }}
+          CONDUCTOR_INTEGRATION: 'true'
+          CONDUCTOR_SERVER_URL: ${{ secrets.CONDUCTOR_SERVER_URL }}
+          CONDUCTOR_AUTH_KEY: ${{ secrets.CONDUCTOR_AUTH_KEY }}
+          CONDUCTOR_AUTH_SECRET: ${{ secrets.CONDUCTOR_AUTH_SECRET }}
         run: |
           bundle exec rspec spec/integration/ --format documentation
         continue-on-error: true

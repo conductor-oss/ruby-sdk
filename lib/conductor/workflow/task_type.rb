@@ -1,0 +1,68 @@
+# frozen_string_literal: true
+
+module Conductor
+  module Workflow
+    # Task type constants for Conductor workflow tasks
+    # These match the server-side task types
+    module TaskType
+      SIMPLE = 'SIMPLE'
+      DYNAMIC = 'DYNAMIC'
+      FORK_JOIN = 'FORK_JOIN'
+      FORK_JOIN_DYNAMIC = 'FORK_JOIN_DYNAMIC'
+      DECISION = 'DECISION'
+      SWITCH = 'SWITCH'
+      JOIN = 'JOIN'
+      DO_WHILE = 'DO_WHILE'
+      SUB_WORKFLOW = 'SUB_WORKFLOW'
+      START_WORKFLOW = 'START_WORKFLOW'
+      EVENT = 'EVENT'
+      WAIT = 'WAIT'
+      WAIT_FOR_WEBHOOK = 'WAIT_FOR_WEBHOOK'
+      HUMAN = 'HUMAN'
+      USER_DEFINED = 'USER_DEFINED'
+      HTTP = 'HTTP'
+      HTTP_POLL = 'HTTP_POLL'
+      LAMBDA = 'LAMBDA'
+      INLINE = 'INLINE'
+      EXCLUSIVE_JOIN = 'EXCLUSIVE_JOIN'
+      TERMINATE = 'TERMINATE'
+      KAFKA_PUBLISH = 'KAFKA_PUBLISH'
+      JSON_JQ_TRANSFORM = 'JSON_JQ_TRANSFORM'
+      SET_VARIABLE = 'SET_VARIABLE'
+      GET_DOCUMENT = 'GET_DOCUMENT'
+
+      # LLM Task Types
+      LLM_GENERATE_EMBEDDINGS = 'LLM_GENERATE_EMBEDDINGS'
+      LLM_GET_EMBEDDINGS = 'LLM_GET_EMBEDDINGS'
+      LLM_TEXT_COMPLETE = 'LLM_TEXT_COMPLETE'
+      LLM_CHAT_COMPLETE = 'LLM_CHAT_COMPLETE'
+      LLM_INDEX_TEXT = 'LLM_INDEX_TEXT'
+      LLM_SEARCH_INDEX = 'LLM_SEARCH_INDEX'
+      GENERATE_IMAGE = 'GENERATE_IMAGE'
+      GENERATE_AUDIO = 'GENERATE_AUDIO'
+      LLM_STORE_EMBEDDINGS = 'LLM_STORE_EMBEDDINGS'
+      LLM_SEARCH_EMBEDDINGS = 'LLM_SEARCH_EMBEDDINGS'
+      LIST_MCP_TOOLS = 'LIST_MCP_TOOLS'
+      CALL_MCP_TOOL = 'CALL_MCP_TOOL'
+
+      # All valid task types
+      ALL_TYPES = [
+        SIMPLE, DYNAMIC, FORK_JOIN, FORK_JOIN_DYNAMIC, DECISION, SWITCH, JOIN,
+        DO_WHILE, SUB_WORKFLOW, START_WORKFLOW, EVENT, WAIT, WAIT_FOR_WEBHOOK,
+        HUMAN, USER_DEFINED, HTTP, HTTP_POLL, LAMBDA, INLINE, EXCLUSIVE_JOIN,
+        TERMINATE, KAFKA_PUBLISH, JSON_JQ_TRANSFORM, SET_VARIABLE, GET_DOCUMENT,
+        LLM_GENERATE_EMBEDDINGS, LLM_GET_EMBEDDINGS, LLM_TEXT_COMPLETE,
+        LLM_CHAT_COMPLETE, LLM_INDEX_TEXT, LLM_SEARCH_INDEX, GENERATE_IMAGE,
+        GENERATE_AUDIO, LLM_STORE_EMBEDDINGS, LLM_SEARCH_EMBEDDINGS,
+        LIST_MCP_TOOLS, CALL_MCP_TOOL
+      ].freeze
+
+      # Check if a task type is valid
+      # @param type [String] The task type to check
+      # @return [Boolean] true if valid
+      def self.valid?(type)
+        ALL_TYPES.include?(type)
+      end
+    end
+  end
+end

@@ -1,0 +1,84 @@
+# Gem build artifacts
+*.gem
+pkg/
+
+# Ruby bytecode
+*.rbc
+
+# Coverage reports
+/coverage/
+
+# RSpec
+.rspec_status
+.rspec_integration_status
+/spec/reports/
+/spec/examples.txt
+
+# Documentation
+/doc/
+/rdoc/
+/.yardoc/
+
+# Bundler
+/.bundle/
+/vendor/bundle/
+/vendor/cache/
+/lib/bundler/man/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Ruby version managers
+.ruby-version
+.ruby-gemset
+.rvmrc
+
+# RuboCop remote configs
+.rubocop-https?--*
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.settings/
+*.sublime-project
+*.sublime-workspace
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+/tmp/
+*.tmp
+*.bak
+*.log
+
+# Local development files
+/test/tmp/
+/test/version_tmp/
+/.config
+/InstalledFiles
+
+# Local test scripts (not part of the gem)
+test_basic.rb
+scratch/
+notes/
+
+# Credentials (never commit these)
+credentials.json
+*.pem
+*.key
+secrets.yml

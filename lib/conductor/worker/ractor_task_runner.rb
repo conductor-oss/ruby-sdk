@@ -452,7 +452,7 @@ module Conductor
           return @available if defined?(@available)
 
           @available = begin
-            RUBY_VERSION >= '3.1' && defined?(Ractor)
+            !!(RUBY_VERSION >= '3.1' && defined?(Ractor))
           rescue StandardError
             false
           end

@@ -5,7 +5,7 @@
 # ===================
 #
 # The simplest complete example demonstrating:
-# 1. Define a workflow
+# 1. Define a workflow using the new Ruby-idiomatic DSL
 # 2. Register the workflow
 # 3. Start workers
 # 4. Execute the workflow
@@ -21,34 +21,17 @@
 
 require_relative 'greetings_worker'
 
-# Include workflow DSL for shorter class names
-include Conductor::Workflow
+def create_greetings_workflow(executor)
+  # Define workflow using the new Ruby-idiomatic DSL
+  Conductor.workflow :greetings, version: 1, executor: executor do
+    # Create greet task that uses workflow input
+    # wf[:name] returns "${workflow.input.name}"
+    greet = simple :greet, name: wf[:name]
 
-def greetings_workflow(workflow_executor, workflow_client)
-  workflow = ConductorWorkflow.new(
-    workflow_client,
-    'greetings',
-    version: 1,
-    executor: workflow_executor
-  )
-
-  # Create greet task that uses workflow input
-  greet = SimpleTask.new('greet', 'greet_ref')
-                    .input('name', workflow.input('name'))
-
-  # Add task to workflow
-  workflow >> greet
-
-  # Set output to be the result from greet task
-  workflow.output_parameter('result', greet.output('result'))
-
-  workflow
-end
-
-def register_workflow(workflow_executor, workflow_client)
-  workflow = greetings_workflow(workflow_executor, workflow_client)
-  workflow_executor.register_workflow(workflow, overwrite: true)
-  workflow
+    # Set output to be the result from greet task
+    # greet[:result] returns "${greet_ref.output.result}"
+    output result: greet[:result]
+  end
 end
 
 def main
@@ -68,11 +51,13 @@ def main
   # Create clients
   clients = Conductor::Orkes::OrkesClients.new(config)
   workflow_executor = clients.get_workflow_executor
-  workflow_client = clients.get_workflow_client
+
+  # Create workflow with executor (required for register/execute)
+  workflow = create_greetings_workflow(workflow_executor)
 
   # Register workflow (only needs to be done once)
   puts 'Registering workflow...'
-  workflow = register_workflow(workflow_executor, workflow_client)
+  workflow.register(overwrite: true)
   puts "Registered workflow: #{workflow.name} v#{workflow.version}"
   puts
 
@@ -84,13 +69,9 @@ def main
   puts 'Workers started!'
   puts
 
-  # Execute workflow
+  # Execute workflow using the new DSL's execute method
   puts 'Executing workflow with input: { name: "World" }'
-  workflow_run = workflow_executor.execute(
-    workflow.name,
-    input: { 'name' => 'World' },
-    wait_for_seconds: 30
-  )
+  workflow_run = workflow.execute(input: { 'name' => 'World' }, wait_for_seconds: 30)
 
   puts
   puts '-' * 60

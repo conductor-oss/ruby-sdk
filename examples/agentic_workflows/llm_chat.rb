@@ -3,65 +3,58 @@
 
 # LLM Chat Workflow Example
 #
-# Demonstrates building a conversational AI workflow using Conductor's
-# LLM Chat Complete task with message history.
+# Demonstrates building a conversational AI workflow using the new Ruby DSL
+# with LLM Chat Complete task and message history.
+#
+# New DSL Features Shown:
+# - llm_chat() method with automatic message conversion
+# - Pass messages as simple hashes instead of ChatMessage objects
 #
 # Usage:
 #   bundle exec ruby examples/agentic_workflows/llm_chat.rb
 
 require_relative '../../lib/conductor'
 
-include Conductor::Workflow
-
 LLM_PROVIDER = ENV.fetch('LLM_PROVIDER', 'openai')
 LLM_MODEL = ENV.fetch('LLM_MODEL', 'gpt-4o-mini')
 
-def create_chat_workflow(workflow_client, workflow_executor)
-  workflow = ConductorWorkflow.new(
-    workflow_client,
-    'llm_chat_ruby',
-    version: 1,
-    executor: workflow_executor
-  )
-  workflow.description('Simple LLM chat workflow')
+def create_chat_workflow(executor)
+  # Create workflow using the new Ruby-idiomatic DSL
+  Conductor.workflow :llm_chat_ruby, version: 1, executor: executor do
+    description 'Simple LLM chat workflow using new DSL'
 
-  # System message sets the AI's behavior
-  system_message = ChatMessage.new(
-    role: 'system',
-    message: <<~MSG
-      You are a helpful assistant specializing in software development.
-      You provide clear, concise answers with code examples when appropriate.
-      Keep responses focused and practical.
-    MSG
-  )
+    # Chat completion task with messages as hashes (auto-converted)
+    # The DSL automatically converts hash messages to ChatMessage objects
+    chat = llm_chat :chat,
+                    provider: LLM_PROVIDER,
+                    model: LLM_MODEL,
+                    messages: [
+                      {
+                        role: :system,
+                        message: <<~MSG
+                          You are a helpful assistant specializing in software development.
+                          You provide clear, concise answers with code examples when appropriate.
+                          Keep responses focused and practical.
+                        MSG
+                      },
+                      {
+                        role: :user,
+                        message: '${workflow.input.user_message}'
+                      }
+                    ],
+                    temperature: 0.7,
+                    max_tokens: 1024
 
-  # User message comes from workflow input
-  user_message = ChatMessage.new(
-    role: 'user',
-    message: '${workflow.input.user_message}'
-  )
-
-  # Chat completion task
-  chat_task = LlmChatCompleteTask.new(
-    'chat_ref',
-    LLM_PROVIDER,
-    LLM_MODEL,
-    messages: [system_message, user_message],
-    temperature: 0.7,
-    max_tokens: 1024
-  )
-
-  workflow >> chat_task
-  workflow.output_parameter('response', chat_task.output('result'))
-
-  workflow
+    # Set workflow output to the chat response
+    output response: chat[:result]
+  end
 end
 
 def main
   config = Conductor::Configuration.new
 
   puts '=' * 70
-  puts 'LLM Chat Workflow Example'
+  puts 'LLM Chat Workflow Example (New DSL)'
   puts '=' * 70
   puts "Server: #{config.server_url}"
   puts "LLM: #{LLM_PROVIDER}/#{LLM_MODEL}"
@@ -69,11 +62,12 @@ def main
 
   clients = Conductor::Orkes::OrkesClients.new(config)
   workflow_executor = clients.get_workflow_executor
-  workflow_client = clients.get_workflow_client
 
-  # Create and register workflow
-  workflow = create_chat_workflow(workflow_client, workflow_executor)
-  workflow_executor.register_workflow(workflow, overwrite: true)
+  # Create workflow with executor (required for register/execute)
+  workflow = create_chat_workflow(workflow_executor)
+
+  # Register workflow
+  workflow.register(overwrite: true)
   puts "Registered workflow: #{workflow.name}"
 
   # Test questions
@@ -87,8 +81,8 @@ def main
     puts "\n--- Question #{i + 1} ---"
     puts "Q: #{question}"
 
-    result = workflow_executor.execute(
-      workflow.name,
+    # Execute using the workflow's execute method
+    result = workflow.execute(
       input: { 'user_message' => question },
       wait_for_seconds: 30
     )

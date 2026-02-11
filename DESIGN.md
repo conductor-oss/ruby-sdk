@@ -9,166 +9,180 @@ This SDK is a Ruby port of the [Conductor Python SDK](https://github.com/conduct
 1. **Follow Python SDK architecture** - Maintain the same layers, patterns, and behaviors
 2. **Ruby-idiomatic API** - Use Ruby conventions (snake_case, blocks, symbols) while keeping the same capabilities
 3. **Feature parity** - Support all features from the Python SDK
-4. **Hybrid DSL** - Block-based workflow definition (primary) + operator chaining (secondary)
+4. **Clean DSL** - Block-based workflow definition with method chaining for output references
 
 ## Architecture Layers
 
 ```
-┌─────────────────────────────────────────────────────┐
-│          User Code (Workflows + Workers)            │
-└─────────────────────────────────────────────────────┘
-                          │
-┌─────────────────────────▼───────────────────────────┐
-│    High-Level DSL                                    │
-│    • ConductorWorkflow (block DSL + >> operator)    │
-│    • Task types (Simple, Fork, Switch, HTTP, LLM)   │
-│    • Worker framework (class/block/method-based)    │
-└─────────────────────────────────────────────────────┘
-                          │
-┌─────────────────────────▼───────────────────────────┐
-│    Domain Clients (Facades)                          │
-│    • WorkflowClient, TaskClient, MetadataClient      │
-│    • WorkflowExecutor                                │
-│    • OrkesClients (main facade)                      │
-└─────────────────────────────────────────────────────┘
-                          │
-┌─────────────────────────▼───────────────────────────┐
-│    Resource APIs (HTTP endpoints)                    │
-│    • TaskResourceApi, WorkflowResourceApi, etc.     │
-│    • Direct mapping to Conductor REST API            │
-└─────────────────────────────────────────────────────┘
-                          │
-┌─────────────────────────▼───────────────────────────┐
-│    HTTP Transport                                    │
-│    • ApiClient (auth, serialization, dispatch)      │
-│    • RestClient (Faraday + HTTP/2)                  │
-│    • BaseModel (SWAGGER_TYPES pattern)              │
-└─────────────────────────────────────────────────────┘
-                          │
-┌─────────────────────────▼───────────────────────────┐
-│    Configuration                                      │
-│    • Server URL, auth settings                       │
-│    • Token management (class-level cache)            │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│                    User Code                                 │
+│     Conductor.workflow :name do ... end                     │
+│     class MyWorker; include WorkerModule; end               │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────▼───────────────────────────────┐
+│                  Workflow DSL                                │
+│  • Conductor.workflow - Entry point for workflow definition │
+│  • WorkflowBuilder - Core DSL engine with task methods      │
+│  • WorkflowDefinition - Wrapper with .register/.execute     │
+│  • OutputRef/InputRef - Reference expression builders       │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────▼───────────────────────────────┐
+│                 Worker Framework                             │
+│  • WorkerModule - Mixin for class-based workers             │
+│  • Worker.define - Block-based worker definition            │
+│  • TaskRunner - Polling and execution                       │
+│  • TaskHandler - Worker orchestration                       │
+│  • Event system - Lifecycle hooks                           │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────▼───────────────────────────────┐
+│               High-Level Clients (Facades)                   │
+│  • WorkflowClient, TaskClient, MetadataClient               │
+│  • SchedulerClient, PromptClient, SecretClient              │
+│  • IntegrationClient, AuthorizationClient, SchemaClient     │
+│  • WorkflowExecutor - Synchronous workflow execution        │
+│  • OrkesClients - Factory for all clients                   │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────▼───────────────────────────────┐
+│              Resource APIs (17 classes)                      │
+│  • WorkflowResourceApi, TaskResourceApi                     │
+│  • MetadataResourceApi, SchedulerResourceApi                │
+│  • EventResourceApi, WorkflowBulkResourceApi                │
+│  • PromptResourceApi, SecretResourceApi, etc.               │
+│  • Direct mapping to Conductor REST API                     │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────▼───────────────────────────────┐
+│                HTTP Transport                                │
+│  • ApiClient - Auth, serialization, dispatch                │
+│  • RestClient - Faraday with HTTP/2, connection pooling     │
+│  • BaseModel - SWAGGER_TYPES pattern for serialization      │
+│  • 50+ Model classes for request/response types             │
+└─────────────────────────────────────────────────────────────┘
+                              │
+┌─────────────────────────────▼───────────────────────────────┐
+│                Configuration                                 │
+│  • Server URL, auth settings                                │
+│  • Token management (class-level cache, TTL refresh)        │
+│  • Environment variable support                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-## Current Implementation Status
+## Workflow DSL Design
 
-### ✅ Phase 1: Foundation (COMPLETED)
+The SDK provides a clean, Ruby-idiomatic DSL for building workflows:
 
-- [x] Gem scaffold (`conductor_ruby.gemspec`, `Gemfile`, `Rakefile`)
-- [x] RuboCop configuration
-- [x] RSpec setup
-- [x] `Conductor::VERSION`
-- [x] `Conductor::Configuration`
-  - Server URL resolution (param > env > default)
-  - UI URL derivation
-  - Auth settings integration
-- [x] `Conductor::Configuration::AuthenticationSettings`
-  - Key/secret from params or `ENV`
-  - `#configured?` check
-- [x] `Conductor::Exceptions`
-  - `ConductorError` (base)
-  - `ApiError` (HTTP errors)
-  - `AuthorizationError` (401/403 with token parsing)
-  - `NonRetryableError` (worker terminal failures)
-  - `TaskInProgress` (long-running task signaling)
+### Entry Point
 
-### 🚧 Phase 2: HTTP Layer (NEXT)
+```ruby
+workflow = Conductor.workflow :order_processing, version: 1, executor: executor do
+  # Workflow definition using DSL methods
+  user = simple :get_user, user_id: wf[:user_id]
+  simple :send_email, email: user[:email]
+  output result: user[:name]
+end
 
-- [ ] `Conductor::Http::RestClient` (Faraday-based)
-  - HTTP/2 support
-  - Connection pooling (100 max, 50 keepalive)
-  - Automatic retries (3x)
-  - 120s timeout
-  - Raise `AuthorizationError` on 401/403
-  - Raise `ApiError` on non-2xx
-- [ ] `Conductor::Http::BaseModel`
-  - `SWAGGER_TYPES` constant (hash of attr => type string)
-  - `ATTRIBUTE_MAP` constant (attr => JSON key)
-  - `#to_h` (recursive serialization)
-  - `.from_hash(hash)` (deserialization with type parsing)
-- [ ] `Conductor::Http::ApiClient`
-  - **Auth token management:**
-    - Initial fetch: POST `/api/token` with `keyId`/`keySecret`
-    - 404 on `/token` → disable auth (OSS mode)
-    - TTL-based proactive refresh (default 45 min)
-    - Retry on 401/403 with `EXPIRED_TOKEN`/`INVALID_TOKEN`
-    - Exponential backoff on failures (2^n seconds, max 5 attempts)
-  - `#sanitize_for_serialization(obj)` - recursive hash/array/model/datetime
-  - `#deserialize(response, type_string)` - parse `'list[Task]'`, `'dict(str, int)'`
-  - `#call_api(path, method, opts)` - main dispatch with retry wrapper
-- [ ] Core models (60+ classes):
-  - `Conductor::Models::Task`
-  - `Conductor::Models::TaskResult`
-  - `Conductor::Models::TaskResultStatus`
-  - `Conductor::Models::Workflow`
-  - `Conductor::Models::WorkflowDef`
-  - `Conductor::Models::StartWorkflowRequest`
-  - ... (see Python SDK `http/models/` for full list)
+workflow.register(overwrite: true)
+result = workflow.execute(input: { user_id: 123 })
+```
 
-### 📋 Phase 3: Resource APIs
+### DSL Components
 
-- [ ] `Conductor::Http::Api::TaskResourceApi` (19 endpoints)
-- [ ] `Conductor::Http::Api::WorkflowResourceApi` (21 endpoints)
-- [ ] `Conductor::Http::Api::MetadataResourceApi` (13 endpoints)
-- [ ] `Conductor::Http::Api::WorkflowBulkResourceApi` (8 endpoints)
-- [ ] `Conductor::Http::Api::EventResourceApi` (5 endpoints)
-- [ ] Additional Resource APIs (Scheduler, Secret, Authorization, etc.)
+| Component | Purpose |
+|-----------|---------|
+| `WorkflowBuilder` | Core DSL engine with all task methods |
+| `WorkflowDefinition` | Wrapper returned by `Conductor.workflow` |
+| `TaskRef` | Stores task metadata, converts to WorkflowTask |
+| `OutputRef` | Enables `task[:field]` syntax |
+| `InputRef` | Enables `wf[:param]` syntax |
+| `ParallelBuilder` | Handles `parallel do...end` blocks |
+| `SwitchBuilder` | Handles `decide do...end` blocks |
 
-### 📋 Phase 4: Domain Clients
+### Reference Resolution
 
-- [ ] `Conductor::Client::WorkflowClient` (abstract interface)
-- [ ] `Conductor::Client::OrkesWorkflowClient` (implementation)
-- [ ] `Conductor::Client::TaskClient` + implementation
-- [ ] `Conductor::Client::MetadataClient` + implementation
-- [ ] `Conductor::Client::OrkesClients` (facade)
-- [ ] `Conductor::WorkflowExecutor`
+The DSL automatically converts references to Conductor expression strings:
 
-### 📋 Phase 5: Worker Framework
+```ruby
+task[:field]              # → "${task_ref.output.field}"
+task[:nested][:path]      # → "${task_ref.output.nested.path}"
+wf[:param]                # → "${workflow.input.param}"
+wf.var(:counter)          # → "${workflow.variables.counter}"
+```
 
-- [ ] `Conductor::Worker` (mixin module)
-- [ ] `Conductor::Worker.define` (block-based workers)
-- [ ] `worker_task` class method (class-based workers)
-- [ ] `Conductor::TaskContext` (thread-local)
-- [ ] `Conductor::TaskResult` (convenience constructors)
-- [ ] `Conductor::TaskRunner` (poll-execute-update loop)
-- [ ] `Conductor::TaskHandler` (manages multiple workers)
+### Task Types (25+)
 
-### 📋 Phase 6: Workflow DSL
+**Basic Tasks:**
+- `simple` - Worker task execution
+- `http` - HTTP request
+- `javascript` - Inline JavaScript execution
+- `jq` - JSON JQ transformation
+- `set` - Set workflow variables
+- `human` - Human/manual task
 
-- [ ] `Conductor::Workflow::ConductorWorkflow` (builder)
-- [ ] Block DSL with helper methods (`simple`, `fork`, `switch`, etc.)
-- [ ] `>>` operator support
-- [ ] `ref(:task_name)` with `method_missing` for output refs
-- [ ] `input(:field)` / `output(:field)` helpers
-- [ ] Task types:
-  - `Conductor::Workflow::Task::Simple`
-  - `Conductor::Workflow::Task::Fork` / `Join`
-  - `Conductor::Workflow::Task::Switch`
-  - `Conductor::Workflow::Task::DoWhile`
-  - `Conductor::Workflow::Task::Http`
-  - `Conductor::Workflow::Task::SubWorkflow`
-  - `Conductor::Workflow::Task::Wait`
-  - `Conductor::Workflow::Task::Event`
-  - `Conductor::Workflow::Task::Inline`
-  - `Conductor::Workflow::Task::JsonJq`
-  - `Conductor::Workflow::Task::SetVariable`
-  - `Conductor::Workflow::Task::Terminate`
-  - LLM tasks (15+ types)
+**Control Flow:**
+- `parallel do...end` - Fork/Join execution
+- `decide expr do...end` - Switch/case branching
+- `when_true/when_false` - Conditional shortcuts
+- `loop_over`, `loop_while`, `loop_times` - Iteration
+- `sub_workflow` - Call another workflow
+- `inline_workflow` - Define sub-workflow inline
 
-### 📋 Phase 7: Examples & Documentation
+**System Tasks:**
+- `wait` - Wait for duration or time
+- `terminate` - End workflow
+- `event` - Publish event
+- `wait_for_webhook` - Wait for external callback
+- `http_poll` - Poll HTTP endpoint
+- `dynamic`, `dynamic_fork` - Runtime task resolution
+- `kafka_publish` - Publish to Kafka
+- `start_workflow` - Fire-and-forget workflow start
 
-- [ ] `examples/simple_worker.rb`
-- [ ] `examples/workflow_definition.rb`
-- [ ] `examples/workflow_execution.rb`
-- [ ] `examples/kitchen_sink.rb`
-- [ ] Complete API documentation
-- [ ] Usage guides
+**LLM/AI Tasks:**
+- `llm_chat` - Chat completion
+- `llm_complete` - Text completion
+- `llm_embed` - Generate embeddings
+- `llm_index`, `llm_search` - Vector operations
+- `llm_store_embeddings`, `llm_search_embeddings` - Vector DB operations
+- `generate_image`, `generate_audio` - Media generation
+- `list_mcp_tools`, `call_mcp_tool` - MCP integration
+- `get_document` - Document retrieval
 
-## Key Implementation Decisions
+## Worker Framework Design
 
-### Auth Flow (Matches Python SDK Exactly)
+See [docs/design/WORKER_DESIGN.md](docs/design/WORKER_DESIGN.md) for detailed design.
+
+### Worker Definition Patterns
+
+```ruby
+# Pattern 1: Class-based (recommended for complex workers)
+class OrderProcessor
+  include Conductor::Worker::WorkerModule
+  worker_task 'process_order', poll_interval: 200, thread_count: 5
+
+  def execute(task)
+    order_id = get_input(task, 'order_id')
+    # Process...
+    { processed: true, order_id: order_id }
+  end
+end
+
+# Pattern 2: Block-based (quick workers)
+Conductor::Worker.define('send_email', poll_interval: 100) do |task|
+  EmailService.deliver(task.input_data['to'], task.input_data['subject'])
+  { sent: true }
+end
+```
+
+### Concurrency Model
+
+**Python SDK:** Uses `multiprocessing.Process` (one OS process per worker) to avoid GIL.
+
+**Ruby SDK:** Uses `Thread` + `concurrent-ruby`'s `ThreadPoolExecutor`. Ruby's GVL releases during I/O operations, making threads sufficient for typical worker workloads.
+
+## Auth Flow (Matches Python SDK)
 
 | Scenario | Behavior |
 |----------|----------|
@@ -180,72 +194,55 @@ This SDK is a Ruby port of the [Conductor Python SDK](https://github.com/conduct
 | Server 401/403 with `INVALID_TOKEN` | Force-refresh, retry request once. |
 | Token refresh fails | Exponential backoff: 2^n seconds, max 5 attempts. |
 
-### Worker Definition Styles
+## File Structure
 
-```ruby
-# Style 1: Class-based (recommended for complex workers)
-class OrderProcessor
-  include Conductor::Worker
-  worker_task 'process_order', poll_interval: 200, thread_count: 5
-
-  def execute(order_id:, amount: 0.0)
-    # Auto-mapped from task.input_data
-    { processed: true, order_id: order_id }
-  end
-end
-
-# Style 2: Block-based (quick workers)
-Conductor::Worker.define 'send_email', poll_interval: 100 do |to:, subject:|
-  EmailService.deliver(to: to, subject: subject)
-  { sent: true }
-end
-
-# Style 3: Method annotation (closest to Python @worker_task)
-module MyWorkers
-  extend Conductor::Worker::Annotatable
-
-  def self.greet(name:)
-    { greeting: "Hello #{name}" }
-  end
-  worker_task :greet, task_definition_name: 'greet_user'
-end
 ```
-
-### Workflow DSL Examples
-
-```ruby
-# Block DSL (primary pattern)
-workflow = client.workflow 'order_pipeline' do
-  simple :validate_order
-  simple :process_payment
-
-  http :notify,
-    url: ref(:process_payment).callback_url,
-    method: :post,
-    body: { order_id: input(:order_id) }
-
-  fork [
-    [simple(:send_email), simple(:update_crm)],
-    [simple(:send_sms)]
-  ]
-
-  switch ref(:validate_order).tier, case_value: true do
-    on 'gold',   [simple(:apply_discount)]
-    on 'silver', [simple(:apply_small_discount)]
-    default      [simple(:no_discount)]
-  end
-end
-
-# Operator chaining (secondary pattern)
-wf = client.workflow 'pipeline'
-wf >> Task.simple(:step_a) >> Task.simple(:step_b)
+lib/conductor/
+├── version.rb                    # VERSION constant
+├── configuration.rb              # Configuration class
+├── exceptions.rb                 # Exception hierarchy
+├── client/                       # High-level client facades (9)
+│   ├── workflow_client.rb
+│   ├── task_client.rb
+│   ├── metadata_client.rb
+│   └── ...
+├── http/
+│   ├── api/                      # Resource API classes (17)
+│   │   ├── workflow_resource_api.rb
+│   │   ├── task_resource_api.rb
+│   │   └── ...
+│   ├── models/                   # HTTP models (50+)
+│   │   ├── workflow_def.rb
+│   │   ├── workflow_task.rb
+│   │   └── ...
+│   ├── api_client.rb             # Auth + serialization
+│   └── rest_client.rb            # Faraday HTTP client
+├── orkes/                        # Orkes Cloud specific
+│   ├── orkes_clients.rb          # Main factory
+│   └── models/
+├── worker/                       # Worker framework
+│   ├── task_runner.rb            # Polling loop
+│   ├── task_handler.rb           # Worker management
+│   ├── worker.rb                 # Worker module
+│   └── events/                   # Event system
+└── workflow/
+    ├── dsl/                      # Workflow DSL
+    │   ├── workflow_builder.rb   # Core DSL engine
+    │   ├── workflow_definition.rb # Wrapper class
+    │   ├── task_ref.rb           # Task reference
+    │   ├── output_ref.rb         # Output reference
+    │   ├── input_ref.rb          # Input reference
+    │   ├── parallel_builder.rb   # parallel do...end
+    │   └── switch_builder.rb     # decide do...end
+    ├── llm/                      # LLM helper classes
+    │   ├── chat_message.rb
+    │   ├── tool_call.rb
+    │   ├── tool_spec.rb
+    │   └── embedding_model.rb
+    ├── task_type.rb              # Task type constants
+    ├── timeout_policy.rb
+    └── workflow_executor.rb
 ```
-
-### Concurrency Model
-
-**Python SDK:** Uses `multiprocessing.Process` (one OS process per worker) to avoid GIL.
-
-**Ruby SDK:** Uses `Thread` + `concurrent-ruby`'s `ThreadPoolExecutor`. Ruby doesn't have a GIL issue, so threads are sufficient and more lightweight.
 
 ## Dependencies
 
@@ -262,69 +259,27 @@ gem 'concurrent-ruby', '~> 1.2'             # ThreadPoolExecutor
 gem 'json', '>= 2.0'
 ```
 
-## File Structure (Target)
-
-```
-lib/
-├── conductor.rb                         # Main entry point
-├── conductor/
-│   ├── version.rb                       # VERSION constant
-│   ├── configuration.rb                 # Configuration class
-│   ├── configuration/
-│   │   └── authentication_settings.rb
-│   ├── exceptions.rb                    # All exception classes
-│   ├── http/
-│   │   ├── rest_client.rb               # Faraday-based HTTP
-│   │   ├── api_client.rb                # Auth + serialization
-│   │   ├── base_model.rb                # SWAGGER_TYPES pattern
-│   │   ├── models/                      # 60+ model classes
-│   │   │   ├── task.rb
-│   │   │   ├── task_result.rb
-│   │   │   ├── workflow.rb
-│   │   │   └── ...
-│   │   └── api/                         # Resource API classes
-│   │       ├── task_resource_api.rb
-│   │       ├── workflow_resource_api.rb
-│   │       └── ...
-│   ├── client/
-│   │   ├── orkes_clients.rb             # Main facade
-│   │   ├── workflow_client.rb
-│   │   ├── task_client.rb
-│   │   ├── metadata_client.rb
-│   │   └── ...
-│   ├── worker/
-│   │   ├── worker.rb                    # Worker mixin
-│   │   ├── task_context.rb              # Thread-local context
-│   │   ├── task_result.rb               # Result constructors
-│   │   └── non_retryable_error.rb
-│   ├── automator/
-│   │   ├── task_runner.rb               # Poll-execute-update
-│   │   └── task_handler.rb              # Manages workers
-│   └── workflow/
-│       ├── conductor_workflow.rb        # Workflow builder
-│       ├── workflow_executor.rb
-│       └── task/
-│           ├── task_interface.rb        # Base with method_missing
-│           ├── simple_task.rb
-│           ├── fork_task.rb
-│           ├── http_task.rb
-│           └── ...
-```
-
 ## Testing Strategy
 
-1. **Unit tests** - Mock HTTP, test logic in isolation
-2. **Integration tests** - Against localhost:7001 Conductor server
-3. **Example-driven** - All examples must work as integration tests
+1. **Unit tests** - Mock HTTP, test logic in isolation (~400 tests)
+2. **Integration tests** - Against Conductor server (~137 tests)
+3. **Example-driven** - All examples in `examples/` directory
 
-## Next Steps
+```bash
+# Run all tests
+bundle exec rspec
 
-1. Implement `RestClient` (Faraday with HTTP/2, connection pooling, retries)
-2. Implement `BaseModel` (SWAGGER_TYPES deserialization)
-3. Implement `ApiClient` (auth flow, serialization)
-4. Generate core models from OpenAPI spec (or hand-code minimal set)
-5. Implement first Resource API (TaskResourceApi)
-6. Build up domain clients
-7. Implement worker framework
-8. Implement workflow DSL
-9. Add examples and documentation
+# Run DSL tests
+bundle exec rspec spec/conductor/workflow/dsl/
+
+# Integration tests (requires server)
+CONDUCTOR_SERVER_URL=http://localhost:8080/api bundle exec rspec spec/integration/
+```
+
+## Related Documents
+
+- [AGENTS.md](AGENTS.md) - Guide for AI coding agents
+- [docs/design/WORKER_DESIGN.md](docs/design/WORKER_DESIGN.md) - Worker infrastructure design
+- [docs/design/WORKFLOW_DSL.md](docs/design/WORKFLOW_DSL.md) - Workflow DSL design
+- [README.md](README.md) - User documentation
+- [CONTRIBUTING.md](CONTRIBUTING.md) - Development guidelines

@@ -110,49 +110,20 @@ require_relative 'conductor/worker/task_definition_registrar'
 # Workflow DSL
 require_relative 'conductor/workflow/task_type'
 require_relative 'conductor/workflow/timeout_policy'
-require_relative 'conductor/workflow/task'
-require_relative 'conductor/workflow/simple_task'
-require_relative 'conductor/workflow/join_task'
-require_relative 'conductor/workflow/fork_task'
-require_relative 'conductor/workflow/switch_task'
-require_relative 'conductor/workflow/http_task'
-require_relative 'conductor/workflow/sub_workflow_task'
-require_relative 'conductor/workflow/do_while_task'
-require_relative 'conductor/workflow/wait_task'
-require_relative 'conductor/workflow/terminate_task'
-require_relative 'conductor/workflow/set_variable_task'
-require_relative 'conductor/workflow/dynamic_fork_task'
-require_relative 'conductor/workflow/javascript_task'
-require_relative 'conductor/workflow/json_jq_task'
-require_relative 'conductor/workflow/event_task'
-require_relative 'conductor/workflow/http_poll_task'
-require_relative 'conductor/workflow/dynamic_task'
-require_relative 'conductor/workflow/human_task'
-require_relative 'conductor/workflow/start_workflow_task'
-require_relative 'conductor/workflow/kafka_publish_task'
-require_relative 'conductor/workflow/wait_for_webhook_task'
-require_relative 'conductor/workflow/conductor_workflow'
 require_relative 'conductor/workflow/workflow_executor'
-# LLM/AI helpers
+# LLM/AI helpers (used by DSL)
 require_relative 'conductor/workflow/llm/chat_message'
 require_relative 'conductor/workflow/llm/tool_call'
 require_relative 'conductor/workflow/llm/tool_spec'
 require_relative 'conductor/workflow/llm/embedding_model'
-# LLM/AI task types
-require_relative 'conductor/workflow/llm/llm_chat_complete_task'
-require_relative 'conductor/workflow/llm/llm_text_complete_task'
-require_relative 'conductor/workflow/llm/llm_generate_embeddings_task'
-require_relative 'conductor/workflow/llm/llm_index_text_task'
-require_relative 'conductor/workflow/llm/llm_index_document_task'
-require_relative 'conductor/workflow/llm/llm_search_index_task'
-require_relative 'conductor/workflow/llm/llm_query_embeddings_task'
-require_relative 'conductor/workflow/llm/llm_store_embeddings_task'
-require_relative 'conductor/workflow/llm/llm_search_embeddings_task'
-require_relative 'conductor/workflow/llm/generate_image_task'
-require_relative 'conductor/workflow/llm/generate_audio_task'
-require_relative 'conductor/workflow/llm/get_document_task'
-require_relative 'conductor/workflow/llm/list_mcp_tools_task'
-require_relative 'conductor/workflow/llm/call_mcp_tool_task'
+# Workflow DSL
+require_relative 'conductor/workflow/dsl/output_ref'
+require_relative 'conductor/workflow/dsl/input_ref'
+require_relative 'conductor/workflow/dsl/task_ref'
+require_relative 'conductor/workflow/dsl/workflow_builder'
+require_relative 'conductor/workflow/dsl/parallel_builder'
+require_relative 'conductor/workflow/dsl/switch_builder'
+require_relative 'conductor/workflow/dsl/workflow_definition'
 
 # Main Conductor module
 # Provides convenience methods for configuration
@@ -180,6 +151,39 @@ module Conductor
     #   end
     def configure
       yield(config) if block_given?
+    end
+
+    # Define a workflow using the new Ruby-idiomatic DSL
+    # @param name [Symbol, String] Workflow name
+    # @param version [Integer, nil] Workflow version (optional)
+    # @param description [String, nil] Workflow description (optional)
+    # @param executor [WorkflowExecutor, nil] Optional executor for .register() and .execute()
+    # @yield Block containing workflow definition
+    # @return [Workflow::Dsl::WorkflowDefinition] The workflow definition
+    # @example
+    #   workflow = Conductor.workflow :order_processing, version: 1, executor: executor do
+    #     user = simple :get_user, user_id: wf[:user_id]
+    #     order = simple :create_order, user_email: user[:email]
+    #
+    #     parallel do
+    #       simple :send_confirmation, email: user[:email]
+    #       simple :update_inventory, order_id: order[:id]
+    #     end
+    #
+    #     output order_id: order[:id], status: 'created'
+    #   end
+    #
+    #   workflow.register(overwrite: true)
+    #   result = workflow.execute(input: { user_id: 123 })
+    def workflow(name, version: nil, description: nil, executor: nil, &block)
+      builder = Workflow::Dsl::WorkflowBuilder.new(
+        name.to_s,
+        version: version,
+        description: description,
+        executor: executor
+      )
+      builder.instance_eval(&block)
+      Workflow::Dsl::WorkflowDefinition.new(builder, executor: executor)
     end
   end
 end

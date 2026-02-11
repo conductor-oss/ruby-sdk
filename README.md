@@ -8,11 +8,11 @@ Official Ruby SDK for [Conductor OSS](https://github.com/conductor-oss/conductor
 ## Features
 
 - **Full Feature Parity** with Python SDK
-- **Workflow DSL** - Build workflows programmatically with 25+ task types
+- **Ruby-Idiomatic Workflow DSL** - Clean block-based syntax with 25+ task types
 - **Worker Framework** - Multi-threaded task execution with class-based and block-based workers
 - **LLM/AI Tasks** - Chat completion, embeddings, RAG, image/audio generation
 - **Orkes Cloud Support** - Authentication, secrets, integrations, prompts
-- **Comprehensive Testing** - 281 unit tests, 110 integration tests
+- **Comprehensive Testing** - 400+ unit tests, 110 integration tests
 
 ## Installation
 
@@ -40,7 +40,7 @@ config = Conductor::Configuration.new
 
 # Create clients
 clients = Conductor::Orkes::OrkesClients.new(config)
-workflow_executor = clients.get_workflow_executor
+executor = clients.get_workflow_executor
 
 # Define a worker
 class GreetWorker
@@ -53,16 +53,14 @@ class GreetWorker
   end
 end
 
-# Build workflow using DSL
-include Conductor::Workflow
-
-workflow = ConductorWorkflow.new(clients.get_workflow_client, 'greetings', version: 1, executor: workflow_executor)
-greet = SimpleTask.new('greet', 'greet_ref').input('name', workflow.input('name'))
-workflow >> greet
-workflow.output_parameter('result', greet.output('result'))
+# Build workflow using new DSL
+workflow = Conductor.workflow :greetings, version: 1, executor: executor do
+  greet = simple :greet, name: wf[:name]
+  output result: greet[:result]
+end
 
 # Register and execute
-workflow_executor.register_workflow(workflow, overwrite: true)
+workflow.register(overwrite: true)
 
 # Start workers
 runner = Conductor::Worker::TaskRunner.new(config)
@@ -70,25 +68,293 @@ runner.register_worker(GreetWorker.new)
 runner.start
 
 # Execute workflow
-result = workflow_executor.execute('greetings', input: { 'name' => 'Ruby' }, wait_for_seconds: 30)
+result = workflow.execute(input: { 'name' => 'Ruby' }, wait_for_seconds: 30)
 puts "Result: #{result.output['result']}"  # => "Hello, Ruby!"
 
 runner.stop
 ```
 
+## Workflow DSL
+
+The SDK provides a clean, Ruby-idiomatic DSL for building workflows:
+
+```ruby
+workflow = Conductor.workflow :order_processing, version: 1, executor: executor do
+  # Access workflow inputs with wf[:param]
+  user = simple :get_user, user_id: wf[:user_id]
+  
+  # Reference task outputs with task[:field]
+  order = simple :validate_order, email: user[:email]
+  
+  # HTTP calls
+  http :call_api, url: 'https://api.example.com', method: :post, body: { id: order[:id] }
+  
+  # Parallel execution
+  parallel do
+    simple :ship_order, order_id: order[:id]
+    simple :send_confirmation, email: user[:email]
+  end
+  
+  # Conditional branching
+  decide order[:region] do
+    on 'US' do
+      simple :us_shipping
+    end
+    on 'EU' do
+      simple :eu_shipping
+    end
+    otherwise do
+      terminate :failed, 'Unsupported region'
+    end
+  end
+  
+  # Set workflow output
+  output tracking: order[:tracking_number], status: 'completed'
+end
+
+# Register and execute
+workflow.register(overwrite: true)
+result = workflow.execute(input: { user_id: 123 }, wait_for_seconds: 60)
+```
+
+### Task Methods Reference
+
+#### Basic Tasks
+
+```ruby
+# Simple task (worker execution)
+result = simple :task_name, input1: 'value', input2: wf[:param]
+
+# Inline code execution
+jq :transform, query: '.items | map(.name)', input: previous[:data]
+javascript :compute, script: 'return inputs.a + inputs.b', a: 1, b: 2
+
+# Set workflow variables
+set_variable :save_state, user_id: user[:id], status: 'active'
+
+# Human/manual task
+human :approval, display_name: 'Manager Approval', form_template: 'approval_form'
+```
+
+#### HTTP Tasks
+
+```ruby
+# HTTP request
+http :call_api,
+  url: 'https://api.example.com/users',
+  method: :post,
+  headers: { 'Authorization' => 'Bearer ${workflow.secrets.api_token}' },
+  body: { name: wf[:name], email: wf[:email] }
+
+# HTTP polling (wait for condition)
+http_poll :wait_for_ready,
+  url: 'https://api.example.com/status/${workflow.input.job_id}',
+  method: :get,
+  termination_condition: '$.status == "ready"',
+  polling_interval: 5,
+  polling_strategy: :fixed
+```
+
+#### Control Flow
+
+```ruby
+# Parallel execution (fork/join)
+parallel do
+  simple :branch_a
+  simple :branch_b
+  simple :branch_c
+end
+
+# Conditional branching
+decide order[:status] do
+  on 'pending' do
+    simple :process_pending
+  end
+  on 'approved' do
+    simple :process_approved
+  end
+  otherwise do
+    simple :handle_unknown
+  end
+end
+
+# Conditional shortcuts
+when_true user[:is_premium] do
+  simple :apply_discount
+end
+
+when_false order[:validated] do
+  terminate :failed, 'Order validation failed'
+end
+
+# Loop over items
+loop_over users[:list], as: :user do
+  simple :process_user, user_id: iteration[:user][:id]
+end
+
+# Do-while loop
+do_while :retry_loop, condition: '${retry_ref.output.success} == false' do
+  simple :retry_operation
+end
+```
+
+#### Sub-workflows
+
+```ruby
+# Call another workflow
+sub_workflow :process_order,
+  workflow_name: 'order_processor',
+  version: 2,
+  input: { order_id: wf[:order_id] }
+
+# Start workflow (fire-and-forget)
+start_workflow :trigger_notification,
+  workflow_name: 'send_notifications',
+  input: { user_id: user[:id] }
+
+# Inline sub-workflow definition
+inline_workflow :nested_process do
+  simple :step1
+  simple :step2
+end
+```
+
+#### Wait and Events
+
+```ruby
+# Wait for duration
+wait :pause, duration: '30s'   # or '5m', '1h', '2d'
+
+# Wait until specific time
+wait :scheduled, until: '2024-12-25T00:00:00Z'
+
+# Wait for external webhook
+wait_for_webhook :external_callback,
+  matches: { 'type' => 'payment', 'order_id' => '${workflow.input.order_id}' }
+
+# Publish event
+event :notify, sink: 'conductor:workflow_events', payload: { status: 'completed' }
+```
+
+#### Termination
+
+```ruby
+# Complete workflow
+terminate :success, 'Processing completed successfully'
+
+# Fail workflow
+terminate :failed, 'Validation error: missing required field'
+```
+
+#### Dynamic Tasks
+
+```ruby
+# Dynamic task name (resolved at runtime)
+dynamic :run_handler, task_to_execute: wf[:handler_name]
+
+# Dynamic fork (parallel tasks determined at runtime)
+dynamic_fork :process_all,
+  tasks_input: wf[:items],
+  task_name: 'process_item'
+```
+
+### LLM/AI Tasks
+
+```ruby
+workflow = Conductor.workflow :ai_assistant, executor: executor do
+  # Chat completion (messages auto-converted from simple format)
+  response = llm_chat :chat,
+    provider: 'openai',
+    model: 'gpt-4',
+    messages: [
+      { role: :system, message: 'You are a helpful assistant.' },
+      { role: :user, message: wf[:question] }
+    ],
+    temperature: 0.7
+
+  # Text completion
+  llm_text :complete,
+    provider: 'anthropic',
+    model: 'claude-3-sonnet',
+    prompt: 'Summarize: ${workflow.input.text}'
+
+  # Generate embeddings
+  embeddings = llm_embeddings :embed,
+    provider: 'openai',
+    model: 'text-embedding-3-small',
+    text: wf[:document]
+
+  # Store embeddings in vector DB
+  llm_store_embeddings :store,
+    provider: 'pinecone',
+    index: 'documents',
+    embeddings: embeddings[:embeddings],
+    metadata: { doc_id: wf[:doc_id] }
+
+  # Search embeddings
+  llm_search_embeddings :search,
+    provider: 'pinecone',
+    index: 'documents',
+    query: wf[:search_query],
+    max_results: 10
+
+  # Generate image
+  generate_image :create_image,
+    provider: 'openai',
+    model: 'dall-e-3',
+    prompt: 'A sunset over mountains',
+    size: '1024x1024'
+
+  # Generate audio (text-to-speech)
+  generate_audio :speak,
+    provider: 'openai',
+    model: 'tts-1',
+    text: response[:content],
+    voice: 'nova'
+
+  # MCP (Model Context Protocol) integration
+  tools = list_mcp_tools :get_tools, server_name: 'my_mcp_server'
+  
+  call_mcp_tool :use_tool,
+    server_name: 'my_mcp_server',
+    tool_name: 'search_documents',
+    arguments: { query: wf[:query] }
+
+  output answer: response[:content]
+end
+```
+
+### Output References
+
+The DSL uses a clean syntax for referencing outputs:
+
+```ruby
+# Workflow input reference
+wf[:user_id]              # => '${workflow.input.user_id}'
+
+# Task output reference
+task[:field]              # => '${task_ref.output.field}'
+task[:nested][:path]      # => '${task_ref.output.nested.path}'
+
+# Loop iteration references (inside loop_over)
+iteration[:current_item]  # Current item being processed
+iteration[:index]         # Current index (0-based)
+iteration[:user][:name]   # If `as: :user` specified
+```
+
 ## Examples
 
-The `examples/` directory contains comprehensive examples matching the Python SDK:
+The `examples/` directory contains comprehensive examples:
 
 | Example | Description |
 |---------|-------------|
 | [`helloworld/`](examples/helloworld/) | Simplest complete example - worker + workflow + execution |
+| [`workflow_dsl.rb`](examples/workflow_dsl.rb) | Comprehensive new DSL showcase |
 | [`simple_worker.rb`](examples/simple_worker.rb) | Worker patterns: class-based, block-based, error handling |
-| [`simple_workflow.rb`](examples/simple_workflow.rb) | Basic workflow client usage |
-| [`workflow_dsl.rb`](examples/workflow_dsl.rb) | Comprehensive DSL: Fork/Join, Switch, HTTP, Sub-workflows |
+| [`kitchensink.rb`](examples/kitchensink.rb) | All major task types using new DSL |
 | [`dynamic_workflow.rb`](examples/dynamic_workflow.rb) | Create and execute workflows at runtime |
-| [`kitchensink.rb`](examples/kitchensink.rb) | All major task types: HTTP, JavaScript, JQ, Switch, Wait, Terminate |
-| [`workflow_ops.rb`](examples/workflow_ops.rb) | Lifecycle operations: pause, resume, restart, retry, rerun, search |
+| [`workflow_ops.rb`](examples/workflow_ops.rb) | Lifecycle operations: pause, resume, restart, retry |
+| [`agentic_workflows/`](examples/agentic_workflows/) | LLM chat and AI workflow examples |
 
 Run examples:
 
@@ -102,55 +368,12 @@ export CONDUCTOR_SERVER_URL=http://localhost:8080/api
 # Run hello world
 cd examples/helloworld && bundle exec ruby helloworld.rb
 
-# Run other examples
-bundle exec ruby examples/dynamic_workflow.rb
+# Run DSL showcase
+bundle exec ruby examples/workflow_dsl.rb
+
+# Run kitchen sink
 bundle exec ruby examples/kitchensink.rb
-bundle exec ruby examples/workflow_ops.rb
 ```
-
-## Workflow DSL
-
-Build workflows programmatically with Ruby:
-
-```ruby
-include Conductor::Workflow
-
-workflow = ConductorWorkflow.new(client, 'my_workflow', version: 1)
-
-# Sequential tasks
-task1 = SimpleTask.new('task1', 'ref1').input('key', 'value')
-task2 = SimpleTask.new('task2', 'ref2')
-workflow >> task1 >> task2
-
-# Parallel execution (Fork/Join)
-workflow >> [[branch1_task], [branch2_task]]
-
-# Conditional branching
-switch = SwitchTask.new('decide', '${workflow.input.type}')
-  .switch_case('A', [handle_a])
-  .switch_case('B', [handle_b])
-  .default_case([handle_default])
-workflow >> switch
-
-# HTTP calls
-http = HttpTask.new('call_api', {
-  'uri' => 'https://api.example.com/data',
-  'method' => 'POST',
-  'body' => { 'key' => '${workflow.input.value}' }
-})
-
-# Sub-workflows
-sub = SubWorkflowTask.new('call_child', 'child_workflow', version: 1)
-  .input('data', '${previous_task.output}')
-```
-
-### Available Task Types (25+)
-
-**Control Flow:** SimpleTask, SwitchTask, ForkTask, JoinTask, DoWhileTask, DynamicTask, DynamicForkTask, SubWorkflowTask
-
-**System Tasks:** HttpTask, HttpPollTask, EventTask, WaitTask, WaitForWebhookTask, TerminateTask, SetVariableTask, JsonJqTask, JavascriptTask, KafkaPublishTask, StartWorkflowTask, HumanTask
-
-**LLM/AI Tasks:** LlmChatCompleteTask, LlmTextCompleteTask, LlmGenerateEmbeddingsTask, LlmIndexTextTask, LlmSearchIndexTask, GenerateImageTask, GenerateAudioTask, and more
 
 ## Worker Framework
 

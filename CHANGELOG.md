@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **BREAKING: Workflow DSL Redesign** - Complete redesign of the workflow DSL for Ruby-idiomatic syntax
+  - New entry point: `Conductor.workflow :name do...end` instead of `ConductorWorkflow.new`
+  - Block-based workflow definition with method chaining
+  - Output references using `task[:field]` syntax instead of `task.output('field')`
+  - Input references using `wf[:param]` syntax instead of `workflow.input('param')`
+  - Control flow blocks: `parallel do`, `decide expr do`, `loop_over items do`
+  - Auto-generated task reference names
+  - Simplified LLM task methods with hash-to-ChatMessage auto-conversion
+
+### Removed
+
+- Old DSL classes removed (breaking change):
+  - `ConductorWorkflow` - replaced by `Conductor.workflow` entry point
+  - `TaskInterface` - replaced by `TaskRef` (internal)
+  - Task classes: `SimpleTask`, `SwitchTask`, `ForkTask`, `JoinTask`, `DoWhileTask`, `HttpTask`, `SubWorkflowTask`, `WaitTask`, `TerminateTask`, `SetVariableTask`, `DynamicForkTask`, `JavascriptTask`, `JsonJqTask`, `EventTask`, `HttpPollTask`, `DynamicTask`, `HumanTask`, `StartWorkflowTask`, `KafkaPublishTask`, `WaitForWebhookTask`
+  - LLM task classes: `LlmChatCompleteTask`, `LlmTextCompleteTask`, `LlmGenerateEmbeddingsTask`, `LlmIndexTextTask`, `LlmIndexDocumentTask`, `LlmSearchIndexTask`, `LlmQueryEmbeddingsTask`, `LlmStoreEmbeddingsTask`, `LlmSearchEmbeddingsTask`, `GenerateImageTask`, `GenerateAudioTask`, `GetDocumentTask`, `ListMcpToolsTask`, `CallMcpToolTask`
+
+### Migration Guide
+
+**Before (old DSL):**
+```ruby
+include Conductor::Workflow
+workflow = ConductorWorkflow.new(client, 'my_workflow', version: 1)
+task = SimpleTask.new('greet', 'greet_ref').input('name', workflow.input('name'))
+workflow >> task
+workflow.output_parameter('result', task.output('result'))
+```
+
+**After (new DSL):**
+```ruby
+workflow = Conductor.workflow :my_workflow, version: 1, executor: executor do
+  task = simple :greet, name: wf[:name]
+  output result: task[:result]
+end
+```
+
 ## [0.1.0] - 2026-02-09
 
 ### Added

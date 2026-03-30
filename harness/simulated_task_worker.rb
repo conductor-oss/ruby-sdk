@@ -83,10 +83,10 @@ module Harness
         min_delay + @rng.rand(range)
       when 'normal'
         gaussian = next_gaussian
-        [1, (mean_delay + gaussian * std_deviation).round].max
+        [1, (mean_delay + (gaussian * std_deviation)).round].max
       when 'exponential'
         exp = -mean_delay * Math.log(1 - @rng.rand)
-        [[min_delay, exp.to_i].max, max_delay].min
+        exp.to_i.clamp(min_delay, max_delay)
       else
         min_delay
       end
@@ -115,9 +115,7 @@ module Harness
         task_index = to_int(input['taskIndex'], -1)
         if task_index >= 0
           fail_indexes = input['failIndexes']
-          if fail_indexes.is_a?(Array)
-            return false if fail_indexes.any? { |i| i.to_s == task_index.to_s }
-          end
+          return false if fail_indexes.is_a?(Array) && fail_indexes.any? { |i| i.to_s == task_index.to_s }
 
           fail_every = to_int(input['failEvery'], 0)
           return false if fail_every.positive? && (task_index % fail_every).zero?
@@ -154,9 +152,7 @@ module Harness
       output['data'] = generate_random_data(output_size) if output_size.positive?
 
       template = input['outputTemplate']
-      if template.is_a?(Hash)
-        template.each { |k, v| output[k] = v }
-      end
+      template.each { |k, v| output[k] = v } if template.is_a?(Hash)
 
       output
     end

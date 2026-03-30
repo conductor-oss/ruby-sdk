@@ -14,7 +14,7 @@ module Harness
     { task_name: 'ruby_worker_1', codename: 'whisperlink', sleep_seconds: 2 },
     { task_name: 'ruby_worker_2', codename: 'shadowfetch', sleep_seconds: 3 },
     { task_name: 'ruby_worker_3', codename: 'ironforge',   sleep_seconds: 4 },
-    { task_name: 'ruby_worker_4', codename: 'deepcrawl',   sleep_seconds: 5 },
+    { task_name: 'ruby_worker_4', codename: 'deepcrawl',   sleep_seconds: 5 }
   ].freeze
 
   def self.env_int(name, default)

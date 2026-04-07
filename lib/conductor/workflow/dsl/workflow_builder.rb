@@ -41,7 +41,7 @@ module Conductor
         #   wf[:user_id] # => "${workflow.input.user_id}"
         #   wf.var(:counter) # => "${workflow.variables.counter}"
         def wf
-          @wf_input ||= InputRef.new
+          @wf ||= InputRef.new
         end
 
         # Configure workflow metadata
@@ -347,7 +347,6 @@ module Conductor
         # @return [TaskRef] Reference to the created task
         def llm_chat(task_name, provider:, model:, messages: nil, temperature: nil, top_p: nil,
                      stop_words: nil, max_tokens: nil, **options)
-          # Auto-convert hash messages to ChatMessage objects
           converted_messages = messages&.map do |msg|
             if msg.is_a?(Hash)
               Conductor::Workflow::Llm::ChatMessage.new(**msg)
@@ -999,7 +998,7 @@ module Conductor
         #     simple :process, item: iteration[:item], index: iteration[:index]
         #   end
         def iteration
-          @iteration_ref ||= OutputRef.new('do_while_ref.output')
+          @iteration ||= OutputRef.new('do_while_ref.output')
         end
 
         # Alias for iteration[:item]

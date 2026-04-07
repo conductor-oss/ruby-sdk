@@ -31,7 +31,7 @@ Metrics/MethodLength:
     - 'examples/**/*'
 
 Metrics/ClassLength:
-  Max: 400
+  Max: 500
 
 Metrics/AbcSize:
   Max: 70

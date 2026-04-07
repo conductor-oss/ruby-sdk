@@ -23,7 +23,8 @@ RSpec.describe Conductor::Workflow::Dsl::WorkflowBuilder do
     end
 
     it 'returns the same InputRef instance on multiple calls' do
-      expect(builder.wf).to be(builder.wf)
+      first_call = builder.wf
+      expect(builder.wf).to be(first_call)
     end
   end
 

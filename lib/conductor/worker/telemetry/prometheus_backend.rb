@@ -73,18 +73,24 @@ module Conductor
                 "Add `gem 'prometheus-client'` to your Gemfile."
         end
 
+        # Each counter declares only the labels it actually receives
+        COUNTER_LABELS = {
+          'task_poll_total' => %i[task_type],
+          'task_poll_error_total' => %i[task_type error],
+          'task_execute_error_total' => %i[task_type exception retryable],
+          'task_update_failed_total' => %i[task_type]
+        }.freeze
+
         # Setup predefined metrics
         def setup_metrics
-          # Counters
           @counters = {}
           @histograms = {}
           @gauges = {}
 
-          # Pre-register common metrics
-          register_counter('task_poll_total', 'Total number of task polls')
-          register_counter('task_poll_error_total', 'Total number of poll errors')
-          register_counter('task_execute_error_total', 'Total number of execution errors')
-          register_counter('task_update_failed_total', 'Total number of failed task updates (CRITICAL)')
+          register_counter('task_poll_total', 'Total number of task polls', COUNTER_LABELS['task_poll_total'])
+          register_counter('task_poll_error_total', 'Total number of poll errors', COUNTER_LABELS['task_poll_error_total'])
+          register_counter('task_execute_error_total', 'Total number of execution errors', COUNTER_LABELS['task_execute_error_total'])
+          register_counter('task_update_failed_total', 'Total number of failed task updates (CRITICAL)', COUNTER_LABELS['task_update_failed_total'])
 
           register_histogram('task_poll_time_seconds', 'Task poll duration in seconds', TIME_BUCKETS)
           register_histogram('task_execute_time_seconds', 'Task execution duration in seconds', TIME_BUCKETS)
@@ -94,14 +100,15 @@ module Conductor
         # Register a counter metric
         # @param name [String] Metric name
         # @param docstring [String] Metric description
-        def register_counter(name, docstring)
+        # @param labels [Array<Symbol>] Label keys for this counter
+        def register_counter(name, docstring, labels = %i[task_type])
           metric_name = name.to_sym
           return if @registry.exist?(metric_name)
 
           counter = Prometheus::Client::Counter.new(
             metric_name,
             docstring: docstring,
-            labels: %i[task_type error exception retryable]
+            labels: labels
           )
           @registry.register(counter)
           @counters[name] = counter
@@ -150,10 +157,11 @@ module Conductor
             if @registry.exist?(metric_name)
               @registry.get(metric_name)
             else
+              labels = COUNTER_LABELS.fetch(name, %i[task_type])
               counter = Prometheus::Client::Counter.new(
                 metric_name,
                 docstring: "Counter for #{name}",
-                labels: %i[task_type error exception retryable]
+                labels: labels
               )
               @registry.register(counter)
               counter

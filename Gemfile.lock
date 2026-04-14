@@ -43,6 +43,8 @@ GEM
     parser (3.3.10.1)
       ast (~> 2.4.1)
       racc
+    prometheus-client (4.2.5)
+      base64
     pry (0.16.0)
       coderay (~> 1.1)
       method_source (~> 1.0)
@@ -93,12 +95,14 @@ GEM
       addressable (>= 2.8.0)
       crack (>= 0.3.2)
       hashdiff (>= 0.4.0, < 2.0.0)
+    webrick (1.9.2)
 
 PLATFORMS
   ruby
 
 DEPENDENCIES
   conductor_ruby!
+  prometheus-client (~> 4.0)
   pry (~> 0.14)
   rake (~> 13.0)
   rspec (~> 3.0)
@@ -106,3 +110,7 @@ DEPENDENCIES
   rubocop-rspec (~> 2.0)
   vcr (~> 6.0)
   webmock (~> 3.0)
+  webrick (~> 1.8)
+
+BUNDLED WITH
+   2.5.22

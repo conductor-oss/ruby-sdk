@@ -3,6 +3,7 @@
 # Load the SDK from source (relative to repo root)
 $LOAD_PATH.unshift(File.expand_path('../lib', __dir__))
 require 'conductor'
+require 'conductor/worker/telemetry/prometheus_backend'
 require_relative 'simulated_task_worker'
 require_relative 'workflow_governor'
 
@@ -31,8 +32,15 @@ module Harness
     batch_size        = env_int('HARNESS_BATCH_SIZE', 20)
     poll_interval_ms  = env_int('HARNESS_POLL_INTERVAL_MS', 100)
 
+    metrics_port = env_int('HARNESS_METRICS_PORT', 9991)
+
     configuration = Conductor::Configuration.new
     register_metadata(configuration)
+
+    metrics_collector = Conductor::Worker::Telemetry::MetricsCollector.new(backend: :prometheus)
+    metrics_server = Conductor::Worker::Telemetry::MetricsServer.new(port: metrics_port)
+    metrics_server.start
+    puts "Prometheus metrics server started on port #{metrics_port}"
 
     workers = SIMULATED_WORKERS.map do |def_entry|
       sim = SimulatedTaskWorker.new(
@@ -55,7 +63,8 @@ module Harness
     task_handler = Conductor::Worker::TaskHandler.new(
       workers: workers,
       configuration: configuration,
-      scan_for_annotated_workers: false
+      scan_for_annotated_workers: false,
+      event_listeners: [metrics_collector]
     )
     task_handler.start
 

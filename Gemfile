@@ -4,4 +4,6 @@ source 'https://rubygems.org'
 
 gemspec
 
+gem 'prometheus-client', '~> 4.0'
 gem 'rake', '~> 13.0'
+gem 'webrick', '~> 1.8'

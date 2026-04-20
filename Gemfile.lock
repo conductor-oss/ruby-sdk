@@ -52,7 +52,7 @@ GEM
     public_suffix (5.1.1)
     racc (1.8.1)
     rainbow (3.1.1)
-    rake (13.3.1)
+    rake (13.4.2)
     regexp_parser (2.11.3)
     reline (0.6.3)
       io-console (~> 0.5)
@@ -104,7 +104,7 @@ DEPENDENCIES
   conductor_ruby!
   prometheus-client (~> 4.0)
   pry (~> 0.14)
-  rake (~> 13.0)
+  rake (~> 13.4, ~> 13.0)
   rspec (~> 3.0)
   rubocop (~> 1.0)
   rubocop-rspec (~> 2.0)

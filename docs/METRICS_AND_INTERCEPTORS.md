@@ -114,13 +114,37 @@ The SDK publishes the following events during worker execution:
 | `TaskExecutionCompleted` | After successful execution | `task_type`, `task_id`, `duration_ms`, `output_size_bytes` |
 | `TaskExecutionFailure` | When execution fails | `task_type`, `task_id`, `duration_ms`, `cause`, `is_retryable` |
 
-### Critical Events
+### Task Update Events
 
 | Event | When Published | Key Attributes |
 |-------|---------------|----------------|
-| `TaskUpdateFailure` | When result update fails after all retries | `task_type`, `task_id`, `retry_count`, `task_result` |
+| `TaskUpdateCompleted` | After a successful `update_task` RPC | `task_type`, `task_id`, `duration_ms` |
+| `TaskUpdateFailure` | When a result update fails after all retries | `task_type`, `task_id`, `retry_count`, `task_result`, `cause`, `duration_ms` |
 
 **Important**: `TaskUpdateFailure` is a critical event indicating that a task result was lost. You should always handle this event to prevent silent data loss.
+
+### Worker Lifecycle Events
+
+| Event | When Published | Key Attributes |
+|-------|---------------|----------------|
+| `TaskPaused` | When a poll iteration is skipped because the worker is paused | `task_type` |
+| `ThreadUncaughtException` | When an uncaught error bubbles out of the poll/execute loop | `cause` (Exception), `task_type` (optional) |
+| `ActiveWorkersChanged` | When the set of in-flight tasks grows or shrinks (thread / fiber runners) | `task_type`, `count` |
+
+### Workflow Lifecycle Events
+
+| Event | When Published | Key Attributes |
+|-------|---------------|----------------|
+| `WorkflowStartError` | When `start_workflow` / `start_workflows` raises client-side | `workflow_type`, `version`, `cause` |
+| `WorkflowInputSize` | After successful serialization of a workflow's input payload | `workflow_type`, `version`, `size_bytes` |
+
+### HTTP Client Events
+
+| Event | When Published | Key Attributes |
+|-------|---------------|----------------|
+| `HttpApiRequest` | After every API request from `Conductor::Http::RestClient` | `method`, `uri`, `status` (`"0"` on network failure), `duration_ms` |
+
+`HttpApiRequest` events are published on the process-wide [`Conductor::Worker::Events::GlobalDispatcher`](#reference) singleton rather than a per-handler dispatcher. `MetricsCollector` auto-subscribes to this global bus on instantiation so Prometheus/Datadog backends pick up HTTP timings even when no `TaskHandler` exists (for example, in pure client scripts). See [Advanced Use Cases](#advanced-use-cases) if you need to isolate or reset the bus.
 
 ---
 
@@ -260,15 +284,44 @@ handler = Conductor::Worker::TaskHandler.new(
 
 ### Tracked Metrics
 
+Metric names, types, and labels follow the cross-language canonical catalog
+documented in [`sdk-metrics-harmonization.md`](https://github.com/orkes-io/certification-cloud-util/blob/main/sdk-metrics-harmonization.md).
+During Phase 1 of harmonization, every worker-level metric carries **both**
+`taskType` (camelCase, canonical) and `task_type` (snake_case, Ruby-legacy) with
+identical values so existing dashboards keep resolving while consumers migrate to
+the canonical label.
+
+**Canonical catalog (emitted by default)**
+
 | Metric | Type | Labels | Description |
 |--------|------|--------|-------------|
-| `task_poll_total` | Counter | `task_type` | Total poll operations |
-| `task_poll_time_seconds` | Histogram | `task_type` | Poll latency |
-| `task_poll_error_total` | Counter | `task_type`, `error` | Poll failures |
-| `task_execute_time_seconds` | Histogram | `task_type` | Execution time |
-| `task_execute_error_total` | Counter | `task_type`, `exception`, `retryable` | Execution failures |
-| `task_result_size_bytes` | Histogram | `task_type` | Output size |
-| `task_update_failed_total` | Counter | `task_type` | Failed result updates |
+| `task_poll_total` | Counter | `taskType`, `task_type` | Total poll operations |
+| `task_execution_started_total` | Counter | `taskType`, `task_type` | Polled tasks dispatched to the worker function |
+| `task_poll_error_total` | Counter | `taskType`, `task_type`, `exception`, `error` | Poll failures (`error` is a legacy alias of `exception`) |
+| `task_execute_error_total` | Counter | `taskType`, `task_type`, `exception`, `retryable` | Execution failures |
+| `task_update_error_total` | Counter | `taskType`, `task_type`, `exception` | Task update failures after all retries |
+| `task_paused_total` | Counter | `taskType`, `task_type` | Poll iterations skipped because the worker is paused |
+| `thread_uncaught_exceptions_total` | Counter | `exception` | Uncaught errors in the poll/execute loop |
+| `workflow_start_error_total` | Counter | `workflowType`, `exception` | Failed `start_workflow` / `start_workflows` calls |
+| `task_poll_time_seconds` | Histogram | `taskType`, `task_type`, `status` | Poll latency (seconds). `status` is `SUCCESS` or `FAILURE` |
+| `task_execute_time_seconds` | Histogram | `taskType`, `task_type`, `status` | Execution latency (seconds) |
+| `task_update_time_seconds` | Histogram | `taskType`, `task_type`, `status` | `update_task` RPC latency (seconds) |
+| `http_api_client_request_seconds` | Histogram | `method`, `uri`, `status` | HTTP API client call latency. `status` is the HTTP status code as a string, or `"0"` on network failure |
+| `task_result_size_bytes` | Gauge (last-value) | `taskType`, `task_type` | Most recent task result output size, bytes |
+| `workflow_input_size_bytes` | Gauge (last-value) | `workflowType`, `version` | Most recent workflow input size, bytes |
+| `active_workers` | Gauge (last-value) | `taskType`, `task_type` | Number of in-flight tasks for the thread / fiber runners |
+
+**Legacy metrics retained for backward compatibility (Phase 1)**
+
+| Metric | Type | Labels | Notes |
+|--------|------|--------|-------|
+| `task_update_failed_total` | Counter | `task_type` | Deprecated alias of `task_update_error_total`. Will be removed in a later phase |
+| `task_result_size_bytes_histogram` | Histogram | `task_type` | Pre-harmonization histogram shape of `task_result_size_bytes`. The canonical name is a Gauge going forward |
+
+Histogram bucket sets:
+
+- Time histograms (`*_time_seconds`, `http_api_client_request_seconds`): `0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10` seconds
+- `task_result_size_bytes_histogram` (bytes): `100, 1k, 10k, 100k, 1M, 10M`
 
 ### Custom Metrics Backend
 
@@ -572,17 +625,37 @@ end
 
 All events are in the `Conductor::Worker::Events` namespace:
 
+Task-runner events:
+
 - `Conductor::Worker::Events::PollStarted`
 - `Conductor::Worker::Events::PollCompleted`
 - `Conductor::Worker::Events::PollFailure`
 - `Conductor::Worker::Events::TaskExecutionStarted`
 - `Conductor::Worker::Events::TaskExecutionCompleted`
 - `Conductor::Worker::Events::TaskExecutionFailure`
+- `Conductor::Worker::Events::TaskUpdateCompleted`
 - `Conductor::Worker::Events::TaskUpdateFailure`
+- `Conductor::Worker::Events::TaskPaused`
+- `Conductor::Worker::Events::ThreadUncaughtException`
+- `Conductor::Worker::Events::ActiveWorkersChanged`
+
+Workflow events:
+
+- `Conductor::Worker::Events::WorkflowStartError`
+- `Conductor::Worker::Events::WorkflowInputSize`
+
+HTTP client events:
+
+- `Conductor::Worker::Events::HttpApiRequest`
+
+### Dispatchers
+
+- `Conductor::Worker::Events::SyncEventDispatcher` - Per-handler event bus wired by `TaskHandler`
+- `Conductor::Worker::Events::GlobalDispatcher` - Process-wide singleton bus used by the HTTP client. Call `GlobalDispatcher.reset!` between tests to isolate state
 
 ### Telemetry Classes
 
-- `Conductor::Worker::Telemetry::MetricsCollector` - Event listener that collects metrics
+- `Conductor::Worker::Telemetry::MetricsCollector` - Event listener that collects metrics (subscribes to the global HTTP dispatcher automatically; pass `subscribe_global_http: false` to opt out)
 - `Conductor::Worker::Telemetry::NullBackend` - No-op metrics backend
 - `Conductor::Worker::Telemetry::PrometheusBackend` - Prometheus metrics backend
 - `Conductor::Worker::Telemetry::MetricsServer` - HTTP server for `/metrics` endpoint

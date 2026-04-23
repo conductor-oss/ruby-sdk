@@ -7,8 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **SDK Metrics Harmonization (Phase 1)** - Aligned worker telemetry with the
+  cross-SDK canonical catalog in
+  [`sdk-metrics-harmonization.md`](https://github.com/orkes-io/certification-cloud-util/blob/main/sdk-metrics-harmonization.md).
+  New canonical series emitted by `MetricsCollector` + `PrometheusBackend`:
+  - Counters: `task_execution_started_total`, `task_update_error_total`,
+    `task_paused_total`, `thread_uncaught_exceptions_total`,
+    `workflow_start_error_total`
+  - Histograms: `task_update_time_seconds{status}`,
+    `http_api_client_request_seconds{method, uri, status}`, and a `status` label
+    on `task_poll_time_seconds` / `task_execute_time_seconds`
+  - Gauges: `task_result_size_bytes` (last-value, replaces histogram shape as
+    canonical), `workflow_input_size_bytes`, `active_workers`
+- New worker event classes published by the task runners, workflow executor, and
+  HTTP client: `TaskUpdateCompleted`, `TaskPaused`, `ThreadUncaughtException`,
+  `ActiveWorkersChanged`, `WorkflowStartError`, `WorkflowInputSize`,
+  `HttpApiRequest`. `TaskUpdateFailure` gained a `duration_ms` attribute.
+- `Conductor::Worker::Events::GlobalDispatcher` - process-wide singleton event
+  bus used by the HTTP client so `HttpApiRequest` events reach
+  `MetricsCollector` without dependency-injecting a dispatcher through the HTTP
+  stack. `MetricsCollector.new` auto-subscribes; pass
+  `subscribe_global_http: false` to opt out (e.g. tests).
+- Canonical time-histogram buckets now include `0.001s` at the low end to match
+  the Java/Go/Python catalog.
+
+### Deprecated
+
+- `task_update_failed_total{task_type}` - retained as a deprecated alias of
+  `task_update_error_total` during Phase 1; will be removed in a later release.
+- `task_result_size_bytes_histogram{task_type}` - retained as the
+  pre-harmonization histogram shape of `task_result_size_bytes` during Phase 1;
+  dashboards should migrate to the canonical Gauge named
+  `task_result_size_bytes`.
+
 ### Changed
 
+- Worker-level metrics now dual-emit the canonical `taskType` (camelCase) label
+  alongside the legacy `task_type` label with identical values. Existing
+  dashboards continue to resolve while consumers migrate to `taskType`.
+- `task_poll_error_total` now dual-emits `exception` (canonical) alongside the
+  legacy `error` label.
+- `PrometheusBackend` pre-registers every canonical and legacy metric with an
+  explicit label set and normalizes caller-supplied labels so partial callers
+  never trigger `prometheus-client` label-mismatch errors.
 - **BREAKING: Workflow DSL Redesign** - Complete redesign of the workflow DSL for Ruby-idiomatic syntax
   - New entry point: `Conductor.workflow :name do...end` instead of `ConductorWorkflow.new`
   - Block-based workflow definition with method chaining

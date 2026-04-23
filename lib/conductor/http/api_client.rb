@@ -32,9 +32,11 @@ module Conductor
       # Initialize ApiClient
       # @param [Configuration] configuration Configuration object
       # @param [Hash] default_headers Optional default headers
-      def initialize(configuration: nil, default_headers: {})
+      # @param [Object, nil] event_dispatcher Optional event dispatcher for HTTP telemetry.
+      #   When nil, HTTP events still go to the process-wide GlobalDispatcher.
+      def initialize(configuration: nil, default_headers: {}, event_dispatcher: nil)
         @configuration = configuration || Configuration.new
-        @rest_client = RestClient.new(@configuration)
+        @rest_client = RestClient.new(@configuration, event_dispatcher: event_dispatcher)
         @default_headers = get_default_headers.merge(default_headers)
 
         # Token refresh backoff tracking

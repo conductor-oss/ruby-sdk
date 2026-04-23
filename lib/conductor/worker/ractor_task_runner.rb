@@ -74,6 +74,10 @@ module Conductor
             run_once
           rescue StandardError => e
             @logger.error("[Ractor #{@ractor_id}] Error in polling loop: #{e.message}")
+            publish_event(Events::ThreadUncaughtException.new(
+                            cause: e,
+                            task_type: @worker.task_definition_name
+                          ))
             sleep(1)
           end
         end
@@ -183,7 +187,10 @@ module Conductor
       # Poll for a single task
       # @return [Hash, nil] Task data or nil
       def poll_task
-        return nil if @worker.paused
+        if @worker.paused
+          publish_event(Events::TaskPaused.new(task_type: @worker.task_definition_name))
+          return nil
+        end
 
         # Auth failure backoff
         if @auth_failures.positive? && @last_auth_failure_time
@@ -401,10 +408,21 @@ module Conductor
         RETRY_BACKOFFS.each_with_index do |backoff, attempt|
           sleep(backoff) if backoff.positive?
 
+          start_time = Time.now
           begin
             @task_client.update_task(task_result)
+            duration_ms = (Time.now - start_time) * 1000
+
+            publish_event(Events::TaskUpdateCompleted.new(
+                            task_type: @worker.task_definition_name,
+                            task_id: task_result.task_id,
+                            worker_id: @worker_id,
+                            workflow_instance_id: task_result.workflow_instance_id,
+                            duration_ms: duration_ms
+                          ))
             return
           rescue StandardError => e
+            duration_ms = (Time.now - start_time) * 1000
             @logger.error("[Ractor #{@ractor_id}] Update failed (attempt #{attempt + 1}): #{e.message}")
 
             if attempt == RETRY_BACKOFFS.size - 1
@@ -417,7 +435,8 @@ module Conductor
                               workflow_instance_id: task_result.workflow_instance_id,
                               cause: e,
                               retry_count: RETRY_BACKOFFS.size,
-                              task_result: task_result
+                              task_result: task_result,
+                              duration_ms: duration_ms
                             ))
             end
           end

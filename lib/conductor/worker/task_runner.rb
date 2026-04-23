@@ -84,6 +84,7 @@ module Conductor
           rescue StandardError => e
             @logger.error("Error in polling loop: #{e.message}")
             @logger.debug(e.backtrace.join("\n")) if e.backtrace
+            publish_uncaught_exception(e)
             sleep(1) # Brief pause before retrying
           end
         end
@@ -180,9 +181,14 @@ module Conductor
 
       # Cleanup completed task futures
       def cleanup_completed_tasks
+        removed = false
         @running_tasks.each do |future|
-          @running_tasks.delete(future) if future.fulfilled? || future.rejected?
+          if future.fulfilled? || future.rejected?
+            @running_tasks.delete(future)
+            removed = true
+          end
         end
+        publish_active_workers if removed
       end
 
       # Calculate adaptive backoff for empty polls
@@ -197,7 +203,12 @@ module Conductor
       # @return [Array<Hash>] Array of task hashes
       def batch_poll(count)
         # Skip if worker is paused
-        return [] if @worker.paused
+        if @worker.paused
+          @event_dispatcher.publish(Events::TaskPaused.new(
+                                      task_type: @worker.task_definition_name
+                                    ))
+          return []
+        end
 
         # Auth failure exponential backoff
         if @auth_failures.value.positive? && @last_auth_failure_time
@@ -292,6 +303,28 @@ module Conductor
           execute_and_update(task)
         end
         @running_tasks << future
+        publish_active_workers
+      end
+
+      # Publish a snapshot of the current active-worker count for this task type
+      def publish_active_workers
+        @event_dispatcher.publish(Events::ActiveWorkersChanged.new(
+                                    task_type: @worker.task_definition_name,
+                                    count: @running_tasks.size
+                                  ))
+      rescue StandardError
+        # Never let telemetry break the worker
+      end
+
+      # Publish an uncaught-exception event; guarded so telemetry never propagates
+      # @param error [Exception]
+      def publish_uncaught_exception(error)
+        @event_dispatcher.publish(Events::ThreadUncaughtException.new(
+                                    cause: error,
+                                    task_type: @worker&.task_definition_name
+                                  ))
+      rescue StandardError
+        # Never let telemetry break the worker
       end
 
       # Execute a task and update the result
@@ -448,10 +481,21 @@ module Conductor
         RETRY_BACKOFFS.each_with_index do |backoff, attempt|
           sleep(backoff) if backoff.positive?
 
+          start_time = Time.now
           begin
             @task_client.update_task(task_result)
+            duration_ms = (Time.now - start_time) * 1000
+
+            @event_dispatcher.publish(Events::TaskUpdateCompleted.new(
+                                        task_type: @worker.task_definition_name,
+                                        task_id: task_result.task_id,
+                                        worker_id: @worker_id,
+                                        workflow_instance_id: task_result.workflow_instance_id,
+                                        duration_ms: duration_ms
+                                      ))
             return # Success
           rescue StandardError => e
+            duration_ms = (Time.now - start_time) * 1000
             @logger.error("Task update failed (attempt #{attempt + 1}/#{RETRY_BACKOFFS.size}): #{e.message}")
 
             if attempt == RETRY_BACKOFFS.size - 1
@@ -466,7 +510,8 @@ module Conductor
                                           workflow_instance_id: task_result.workflow_instance_id,
                                           cause: e,
                                           retry_count: RETRY_BACKOFFS.size,
-                                          task_result: task_result
+                                          task_result: task_result,
+                                          duration_ms: duration_ms
                                         ))
             end
           end

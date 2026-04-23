@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'json'
 require 'securerandom'
 require_relative '../configuration'
 require_relative '../http/api_client'
@@ -7,22 +8,28 @@ require_relative '../http/api/workflow_resource_api'
 require_relative '../http/api/metadata_resource_api'
 require_relative '../http/api/task_resource_api'
 require_relative '../http/models/start_workflow_request'
+require_relative '../worker/events/workflow_events'
+require_relative '../worker/events/sync_event_dispatcher'
 
 module Conductor
   module Workflow
     # WorkflowExecutor provides a high-level interface for executing workflows
     # Supports both synchronous (wait for completion) and asynchronous execution
     class WorkflowExecutor
-      attr_reader :workflow_api, :metadata_api, :task_api
+      attr_reader :workflow_api, :metadata_api, :task_api, :event_dispatcher
 
       # Initialize WorkflowExecutor
       # @param [Configuration] configuration Optional configuration
-      def initialize(configuration = nil)
+      # @param [Worker::Events::SyncEventDispatcher, nil] event_dispatcher Optional event dispatcher for
+      #   workflow lifecycle events (WorkflowStartError, WorkflowInputSize). When nil, events are still
+      #   published to a per-executor dispatcher that listeners may be attached to via #event_dispatcher.
+      def initialize(configuration = nil, event_dispatcher: nil)
         @configuration = configuration || Configuration.new
         api_client = Http::ApiClient.new(configuration: @configuration)
         @workflow_api = Http::Api::WorkflowResourceApi.new(api_client)
         @metadata_api = Http::Api::MetadataResourceApi.new(api_client)
         @task_api = Http::Api::TaskResourceApi.new(api_client)
+        @event_dispatcher = event_dispatcher || Worker::Events::SyncEventDispatcher.new
       end
 
       # ==========================================
@@ -46,7 +53,11 @@ module Conductor
       # @param [StartWorkflowRequest] request Start workflow request
       # @return [String] Workflow ID
       def start_workflow(request)
+        publish_workflow_input_size(request)
         @workflow_api.start_workflow(request)
+      rescue StandardError => e
+        publish_workflow_start_error(request, e)
+        raise
       end
 
       # Start multiple workflows
@@ -55,6 +66,56 @@ module Conductor
       def start_workflows(*requests)
         requests.flatten.map { |request| start_workflow(request) }
       end
+
+      private
+
+      # Publish a WorkflowInputSize event with the serialized byte size of the workflow input
+      # @param request [StartWorkflowRequest]
+      def publish_workflow_input_size(request)
+        name = workflow_name_from(request)
+        return unless name
+
+        input_bytes = begin
+          (request.respond_to?(:input) ? request.input : nil).to_json.bytesize
+        rescue StandardError
+          0
+        end
+
+        @event_dispatcher.publish(Worker::Events::WorkflowInputSize.new(
+                                    workflow_type: name,
+                                    version: workflow_version_from(request),
+                                    size_bytes: input_bytes
+                                  ))
+      rescue StandardError
+        # Telemetry must never break workflow starts
+      end
+
+      # Publish a WorkflowStartError event on a failed StartWorkflow call
+      # @param request [StartWorkflowRequest]
+      # @param error [Exception]
+      def publish_workflow_start_error(request, error)
+        @event_dispatcher.publish(Worker::Events::WorkflowStartError.new(
+                                    workflow_type: workflow_name_from(request) || 'unknown',
+                                    version: workflow_version_from(request),
+                                    cause: error
+                                  ))
+      rescue StandardError
+        # Telemetry must never break workflow starts
+      end
+
+      def workflow_name_from(request)
+        return nil unless request
+
+        request.respond_to?(:name) ? request.name : nil
+      end
+
+      def workflow_version_from(request)
+        return nil unless request
+
+        request.respond_to?(:version) ? request.version : nil
+      end
+
+      public
 
       # Execute a workflow synchronously and wait for completion
       # @param [StartWorkflowRequest] request Start workflow request

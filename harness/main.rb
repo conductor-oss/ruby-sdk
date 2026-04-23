@@ -68,7 +68,10 @@ module Harness
     )
     task_handler.start
 
-    workflow_executor = Conductor::Workflow::WorkflowExecutor.new(configuration)
+    workflow_executor = Conductor::Workflow::WorkflowExecutor.new(
+      configuration,
+      event_dispatcher: task_handler.event_dispatcher
+    )
     governor = WorkflowGovernor.new(workflow_executor, WORKFLOW_NAME, workflows_per_sec)
     governor.start
 

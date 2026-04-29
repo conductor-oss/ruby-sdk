@@ -37,7 +37,7 @@ module Harness
     configuration = Conductor::Configuration.new
     register_metadata(configuration)
 
-    metrics_collector = Conductor::Worker::Telemetry::MetricsCollector.new(backend: :prometheus)
+    metrics_collector = Conductor::Worker::Telemetry::MetricsCollector.create(backend: :prometheus)
     metrics_server = Conductor::Worker::Telemetry::MetricsServer.new(port: metrics_port)
     metrics_server.start
     puts "Prometheus metrics server started on port #{metrics_port}"
@@ -68,7 +68,10 @@ module Harness
     )
     task_handler.start
 
-    workflow_executor = Conductor::Workflow::WorkflowExecutor.new(configuration)
+    workflow_executor = Conductor::Workflow::WorkflowExecutor.new(
+      configuration,
+      event_dispatcher: task_handler.event_dispatcher
+    )
     governor = WorkflowGovernor.new(workflow_executor, WORKFLOW_NAME, workflows_per_sec)
     governor.start
 

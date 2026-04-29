@@ -4,6 +4,9 @@ require 'faraday'
 require 'faraday/net_http_persistent'
 require 'faraday/retry'
 require 'json'
+require 'uri'
+require_relative '../worker/events/global_dispatcher'
+require_relative '../worker/events/http_events'
 
 module Conductor
   module Http
@@ -11,8 +14,9 @@ module Conductor
     class RestClient
       attr_reader :connection
 
-      def initialize(configuration = nil)
+      def initialize(configuration = nil, event_dispatcher: nil)
         @configuration = configuration
+        @event_dispatcher = event_dispatcher
         @connection = build_connection
       end
 
@@ -24,16 +28,29 @@ module Conductor
         headers ||= {}
         headers['Content-Type'] ||= 'application/json' if %w[POST PUT PATCH DELETE OPTIONS].include?(method)
 
-        response = @connection.run_request(method.downcase.to_sym, url, nil, headers) do |req|
-          req.params = query if query
-          req.body = serialize_body(body, headers['Content-Type']) if body
-        end
+        start_time = Time.now
+        status_code = '0'
 
-        handle_response(response)
-      rescue Faraday::TimeoutError => e
-        raise ApiError.new("Request timeout: #{e.message}", status: 0, reason: 'Timeout')
-      rescue Faraday::ConnectionFailed => e
-        raise ApiError.new("Connection error: #{e.message}", status: 0, reason: 'ConnectionFailed')
+        begin
+          response = @connection.run_request(method.downcase.to_sym, url, nil, headers) do |req|
+            req.params = query if query
+            req.body = serialize_body(body, headers['Content-Type']) if body
+          end
+          status_code = response.status.to_s
+
+          result = handle_response(response)
+          emit_http_event(method, url, status_code, start_time)
+          result
+        rescue Faraday::TimeoutError => e
+          emit_http_event(method, url, '0', start_time)
+          raise ApiError.new("Request timeout: #{e.message}", status: 0, reason: 'Timeout')
+        rescue Faraday::ConnectionFailed => e
+          emit_http_event(method, url, '0', start_time)
+          raise ApiError.new("Connection error: #{e.message}", status: 0, reason: 'ConnectionFailed')
+        rescue ApiError, AuthorizationError
+          emit_http_event(method, url, status_code, start_time)
+          raise
+        end
       end
 
       # Convenience methods
@@ -70,6 +87,18 @@ module Conductor
       end
 
       private
+
+      def emit_http_event(method, url, status, start_time)
+        duration_ms = (Time.now - start_time) * 1000
+        uri_path = URI.parse(url).request_uri
+        event = Conductor::Worker::Events::HttpApiRequest.new(
+          method: method, uri: uri_path, status: status, duration_ms: duration_ms
+        )
+        @event_dispatcher&.publish(event)
+        Conductor::Worker::Events::GlobalDispatcher.publish(event)
+      rescue StandardError
+        # Telemetry must never break the HTTP path
+      end
 
       def build_connection
         Faraday.new do |conn|

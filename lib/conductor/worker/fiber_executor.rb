@@ -192,6 +192,7 @@ module Conductor
               sleep(0.001)
             rescue StandardError => e
               @logger.error("Error in fiber polling loop: #{e.message}")
+              publish_uncaught_exception(e)
               sleep(1)
             end
           end
@@ -227,6 +228,7 @@ module Conductor
           tasks.each do |task|
             executor.submit { execute_and_update(task) }
           end
+          publish_active_workers(executor)
         end
       end
 
@@ -258,7 +260,10 @@ module Conductor
       end
 
       def batch_poll(count)
-        return [] if @worker.paused
+        if @worker.paused
+          @event_dispatcher.publish(Events::TaskPaused.new(task_type: @worker.task_definition_name))
+          return []
+        end
 
         if @auth_failures.positive? && @last_auth_failure_time
           backoff_seconds = [2**@auth_failures, MAX_AUTH_BACKOFF_SECONDS].min
@@ -438,10 +443,21 @@ module Conductor
         RETRY_BACKOFFS.each_with_index do |backoff, attempt|
           sleep(backoff) if backoff.positive?
 
+          start_time = Time.now
           begin
             @task_client.update_task(task_result)
+            duration_ms = (Time.now - start_time) * 1000
+
+            @event_dispatcher.publish(Events::TaskUpdateCompleted.new(
+                                        task_type: @worker.task_definition_name,
+                                        task_id: task_result.task_id,
+                                        worker_id: @worker_id,
+                                        workflow_instance_id: task_result.workflow_instance_id,
+                                        duration_ms: duration_ms
+                                      ))
             return
           rescue StandardError => e
+            duration_ms = (Time.now - start_time) * 1000
             @logger.error("Update failed (attempt #{attempt + 1}): #{e.message}")
 
             if attempt == RETRY_BACKOFFS.size - 1
@@ -452,11 +468,30 @@ module Conductor
                                           workflow_instance_id: task_result.workflow_instance_id,
                                           cause: e,
                                           retry_count: RETRY_BACKOFFS.size,
-                                          task_result: task_result
+                                          task_result: task_result,
+                                          duration_ms: duration_ms
                                         ))
             end
           end
         end
+      end
+
+      def publish_active_workers(executor)
+        @event_dispatcher.publish(Events::ActiveWorkersChanged.new(
+                                    task_type: @worker.task_definition_name,
+                                    count: executor.running_count
+                                  ))
+      rescue StandardError
+        # Telemetry must never break the worker
+      end
+
+      def publish_uncaught_exception(error)
+        @event_dispatcher.publish(Events::ThreadUncaughtException.new(
+                                    cause: error,
+                                    task_type: @worker&.task_definition_name
+                                  ))
+      rescue StandardError
+        # Telemetry must never break the worker
       end
 
       def cleanup

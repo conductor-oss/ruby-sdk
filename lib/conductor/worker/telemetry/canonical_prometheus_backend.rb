@@ -105,7 +105,7 @@ module Conductor
           buckets = HISTOGRAM_BUCKETS[name] || TIME_BUCKETS
           @histograms[name] = register_or_reuse(metric_name) do
             Prometheus::Client::Histogram.new(metric_name, docstring: docstring,
-                                              labels: labels, buckets: buckets)
+                                                           labels: labels, buckets: buckets)
           end
         end
 
@@ -139,7 +139,7 @@ module Conductor
             labels = HISTOGRAM_LABELS.fetch(name, %i[taskType])
             buckets = HISTOGRAM_BUCKETS[name] || TIME_BUCKETS
             Prometheus::Client::Histogram.new(name.to_sym, docstring: "Histogram for #{name}",
-                                              labels: labels, buckets: buckets)
+                                                           labels: labels, buckets: buckets)
           end
         end
 

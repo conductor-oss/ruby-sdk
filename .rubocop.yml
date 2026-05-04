@@ -21,6 +21,7 @@ Style/MixinUsage:
 
 # Metrics settings
 Metrics/BlockLength:
+  Max: 40
   Exclude:
     - 'spec/**/*'
     - '*.gemspec'

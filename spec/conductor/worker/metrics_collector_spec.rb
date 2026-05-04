@@ -6,7 +6,7 @@ require_relative '../../../lib/conductor/worker/telemetry/metrics_collector'
 RSpec.describe Conductor::Worker::Telemetry::MetricsCollector do
   describe '.create' do
     around do |example|
-      old_val = ENV['WORKER_CANONICAL_METRICS']
+      old_val = ENV.fetch('WORKER_CANONICAL_METRICS', nil)
       example.run
     ensure
       if old_val.nil?
@@ -61,7 +61,7 @@ RSpec.describe Conductor::Worker::Telemetry::MetricsCollector do
 
   describe '.canonical_metrics_enabled?' do
     around do |example|
-      old_val = ENV['WORKER_CANONICAL_METRICS']
+      old_val = ENV.fetch('WORKER_CANONICAL_METRICS', nil)
       example.run
     ensure
       if old_val.nil?

@@ -462,13 +462,7 @@ module Conductor
             @task_client.update_task(task_result)
             duration_ms = (Time.now - start_time) * 1000
 
-            @event_dispatcher.publish(Events::TaskUpdateCompleted.new(
-                                        task_type: @worker.task_definition_name,
-                                        task_id: task_result.task_id,
-                                        worker_id: @worker_id,
-                                        workflow_instance_id: task_result.workflow_instance_id,
-                                        duration_ms: duration_ms
-                                      ))
+            publish_task_update_completed(task_result, duration_ms)
             return # Success
           rescue StandardError => e
             duration_ms = (Time.now - start_time) * 1000
@@ -477,20 +471,33 @@ module Conductor
             if attempt == RETRY_BACKOFFS.size - 1
               @logger.fatal("CRITICAL: Task update failed after #{RETRY_BACKOFFS.size} attempts. " \
                             "Task #{task_result.task_id} result is LOST.")
-
-              @event_dispatcher.publish(Events::TaskUpdateFailure.new(
-                                          task_type: @worker.task_definition_name,
-                                          task_id: task_result.task_id,
-                                          worker_id: @worker_id,
-                                          workflow_instance_id: task_result.workflow_instance_id,
-                                          cause: e,
-                                          retry_count: RETRY_BACKOFFS.size,
-                                          task_result: task_result,
-                                          duration_ms: duration_ms
-                                        ))
+              publish_task_update_failure(task_result, e, duration_ms)
             end
           end
         end
+      end
+
+      def publish_task_update_completed(task_result, duration_ms)
+        @event_dispatcher.publish(Events::TaskUpdateCompleted.new(
+                                    task_type: @worker.task_definition_name,
+                                    task_id: task_result.task_id,
+                                    worker_id: @worker_id,
+                                    workflow_instance_id: task_result.workflow_instance_id,
+                                    duration_ms: duration_ms
+                                  ))
+      end
+
+      def publish_task_update_failure(task_result, error, duration_ms)
+        @event_dispatcher.publish(Events::TaskUpdateFailure.new(
+                                    task_type: @worker.task_definition_name,
+                                    task_id: task_result.task_id,
+                                    worker_id: @worker_id,
+                                    workflow_instance_id: task_result.workflow_instance_id,
+                                    cause: error,
+                                    retry_count: RETRY_BACKOFFS.size,
+                                    task_result: task_result,
+                                    duration_ms: duration_ms
+                                  ))
       end
 
       def publish_active_workers

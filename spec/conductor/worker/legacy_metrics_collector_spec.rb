@@ -26,6 +26,12 @@ RSpec.describe Conductor::Worker::Telemetry::LegacyMetricsCollector do
     end
   end
 
+  describe '#collector_name' do
+    it 'returns "legacy"' do
+      expect(collector.collector_name).to eq('legacy')
+    end
+  end
+
   describe '#on_poll_started' do
     it 'increments task_poll_total with snake_case task_type' do
       event = Conductor::Worker::Events::PollStarted.new(

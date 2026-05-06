@@ -20,6 +20,12 @@ RSpec.describe Conductor::Worker::Telemetry::CanonicalMetricsCollector do
     end
   end
 
+  describe '#collector_name' do
+    it 'returns "canonical"' do
+      expect(collector.collector_name).to eq('canonical')
+    end
+  end
+
   # --- Task Runner Events ---
 
   describe '#on_poll_started' do

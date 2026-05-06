@@ -40,7 +40,7 @@ module Harness
     metrics_collector = Conductor::Worker::Telemetry::MetricsCollector.create(backend: :prometheus)
     metrics_server = Conductor::Worker::Telemetry::MetricsServer.new(port: metrics_port)
     metrics_server.start
-    puts "Prometheus metrics server started on port #{metrics_port}"
+    puts "Prometheus metrics server started on port #{metrics_port} (#{metrics_collector.collector_name} metrics)"
 
     workers = SIMULATED_WORKERS.map do |def_entry|
       sim = SimulatedTaskWorker.new(

@@ -57,6 +57,18 @@ RSpec.describe Conductor::Worker::Telemetry::MetricsCollector do
       collector = described_class.create(backend: :null)
       expect(collector.backend).to be_a(Conductor::Worker::Telemetry::NullBackend)
     end
+
+    it 'legacy collector returns "legacy" from collector_name' do
+      ENV.delete('WORKER_CANONICAL_METRICS')
+      collector = described_class.create
+      expect(collector.collector_name).to eq('legacy')
+    end
+
+    it 'canonical collector returns "canonical" from collector_name' do
+      ENV['WORKER_CANONICAL_METRICS'] = 'true'
+      collector = described_class.create(subscribe_global_http: false)
+      expect(collector.collector_name).to eq('canonical')
+    end
   end
 
   describe '.canonical_metrics_enabled?' do

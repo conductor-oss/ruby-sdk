@@ -35,6 +35,10 @@ module Conductor
 
         attr_reader :backend
 
+        def collector_name
+          'canonical'
+        end
+
         # --- Task Runner Event Handlers ---
 
         def on_poll_started(event)

@@ -25,6 +25,10 @@ module Conductor
 
         attr_reader :backend
 
+        def collector_name
+          'legacy'
+        end
+
         # --- Real legacy metrics ---
 
         def on_poll_started(event)

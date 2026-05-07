@@ -1,14 +1,13 @@
 # frozen_string_literal: true
 
 require_relative 'task_runner_events'
+require_relative 'workflow_events'
+require_relative 'http_events'
 
 module Conductor
   module Worker
     module Events
-      # Helper class to register listener objects with event dispatchers
-      # Uses duck typing to detect which methods a listener implements
       class ListenerRegistry
-        # Mapping of event classes to listener method names
         EVENT_METHOD_MAP = {
           PollStarted => :on_poll_started,
           PollCompleted => :on_poll_completed,
@@ -16,28 +15,24 @@ module Conductor
           TaskExecutionStarted => :on_task_execution_started,
           TaskExecutionCompleted => :on_task_execution_completed,
           TaskExecutionFailure => :on_task_execution_failure,
-          TaskUpdateFailure => :on_task_update_failure
+          TaskUpdateCompleted => :on_task_update_completed,
+          TaskUpdateFailure => :on_task_update_failure,
+          TaskPaused => :on_task_paused,
+          ThreadUncaughtException => :on_thread_uncaught_exception,
+          ActiveWorkersChanged => :on_active_workers_changed,
+          WorkflowStartError => :on_workflow_start_error,
+          WorkflowInputSize => :on_workflow_input_size,
+          HttpApiRequest => :on_http_api_request
         }.freeze
 
-        # Register a listener object with the dispatcher
-        # Auto-detects implemented methods via respond_to?
-        # @param listener [Object] Object implementing TaskRunnerEventsListener methods
-        # @param dispatcher [SyncEventDispatcher] Event dispatcher
-        # @return [void]
         def self.register_task_runner_listener(listener, dispatcher)
           EVENT_METHOD_MAP.each do |event_class, method_name|
             dispatcher.register(event_class, ->(event) { listener.send(method_name, event) }) if listener.respond_to?(method_name)
           end
         end
 
-        # Register multiple listeners with the dispatcher
-        # @param listeners [Array<Object>] Array of listener objects
-        # @param dispatcher [SyncEventDispatcher] Event dispatcher
-        # @return [void]
         def self.register_all(listeners, dispatcher)
-          listeners.each do |listener|
-            register_task_runner_listener(listener, dispatcher)
-          end
+          listeners.each { |listener| register_task_runner_listener(listener, dispatcher) }
         end
       end
     end

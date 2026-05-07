@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'json'
 require 'securerandom'
 require_relative '../configuration'
 require_relative '../http/api_client'
@@ -7,22 +8,26 @@ require_relative '../http/api/workflow_resource_api'
 require_relative '../http/api/metadata_resource_api'
 require_relative '../http/api/task_resource_api'
 require_relative '../http/models/start_workflow_request'
+require_relative '../worker/events/workflow_events'
+require_relative '../worker/events/sync_event_dispatcher'
 
 module Conductor
   module Workflow
     # WorkflowExecutor provides a high-level interface for executing workflows
     # Supports both synchronous (wait for completion) and asynchronous execution
     class WorkflowExecutor
-      attr_reader :workflow_api, :metadata_api, :task_api
+      attr_reader :workflow_api, :metadata_api, :task_api, :event_dispatcher
 
       # Initialize WorkflowExecutor
       # @param [Configuration] configuration Optional configuration
-      def initialize(configuration = nil)
+      # @param [Worker::Events::SyncEventDispatcher, nil] event_dispatcher Optional event dispatcher
+      def initialize(configuration = nil, event_dispatcher: nil)
         @configuration = configuration || Configuration.new
         api_client = Http::ApiClient.new(configuration: @configuration)
         @workflow_api = Http::Api::WorkflowResourceApi.new(api_client)
         @metadata_api = Http::Api::MetadataResourceApi.new(api_client)
         @task_api = Http::Api::TaskResourceApi.new(api_client)
+        @event_dispatcher = event_dispatcher || Worker::Events::SyncEventDispatcher.new
       end
 
       # ==========================================
@@ -46,7 +51,11 @@ module Conductor
       # @param [StartWorkflowRequest] request Start workflow request
       # @return [String] Workflow ID
       def start_workflow(request)
+        publish_workflow_input_size(request)
         @workflow_api.start_workflow(request)
+      rescue StandardError => e
+        publish_workflow_start_error(request, e)
+        raise
       end
 
       # Start multiple workflows
@@ -320,6 +329,40 @@ module Conductor
         else
           get_workflow(result.workflow_id)
         end
+      end
+
+      private
+
+      def publish_workflow_input_size(request)
+        name = request.respond_to?(:name) ? request.name : nil
+        return unless name
+
+        input_bytes = begin
+          (request.respond_to?(:input) ? request.input : nil).to_json.bytesize
+        rescue StandardError
+          0
+        end
+
+        @event_dispatcher.publish(Worker::Events::WorkflowInputSize.new(
+                                    workflow_type: name,
+                                    version: request.respond_to?(:version) ? request.version : nil,
+                                    size_bytes: input_bytes
+                                  ))
+      rescue StandardError
+        # Telemetry must never break workflow starts
+      end
+
+      def publish_workflow_start_error(request, error)
+        wf_name = (request.respond_to?(:name) ? request.name : nil) || 'unknown'
+        wf_version = request.respond_to?(:version) ? request.version : nil
+
+        @event_dispatcher.publish(Worker::Events::WorkflowStartError.new(
+                                    workflow_type: wf_name,
+                                    version: wf_version,
+                                    cause: error
+                                  ))
+      rescue StandardError
+        # Telemetry must never break workflow starts
       end
     end
   end

@@ -38,7 +38,7 @@ module Harness
 
     def start_batch
       @workflows_per_second.times do
-        request = Conductor::Http::Models::StartWorkflowRequest.new(name: @workflow_name)
+        request = Conductor::Http::Models::StartWorkflowRequest.new(name: @workflow_name, version: 1)
         @workflow_executor.start_workflow(request)
       end
       puts "Governor: started #{@workflows_per_second} workflow(s)"

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Metrics harmonization** - canonical metric surface aligned with the cross-SDK catalog, opt-in via `WORKER_CANONICAL_METRICS=true`
+  - New `Conductor::Worker::Telemetry::CanonicalMetricsCollector` and `CanonicalPrometheusBackend` emit the harmonized cross-SDK catalog: counters (`task_poll_total`, `task_execution_started_total`, `task_poll_error_total{exception}`, `task_execute_error_total{exception}`, `task_update_error_total{exception}`, `task_paused_total`, `thread_uncaught_exceptions_total{exception}`, `workflow_start_error_total{workflowType,exception}`), histograms (`task_poll_time_seconds{taskType,status}`, `task_execute_time_seconds`, `task_update_time_seconds`, `http_api_client_request_seconds{method,uri,status}`, `task_result_size_bytes`, `workflow_input_size_bytes{workflowType,version}`), and an `active_workers{taskType}` gauge. Time buckets `0.001…10s`; size buckets `100…10_000_000` bytes; labels are camelCase.
+  - `MetricsCollector.create(backend:)` factory selects `LegacyMetricsCollector` (default) or `CanonicalMetricsCollector` based on `WORKER_CANONICAL_METRICS` (truthy: `true`, `1`, `yes`, case-insensitive). `WORKER_LEGACY_METRICS` is reserved for a future default-flip phase.
+  - New event types: `HttpApiRequest`, `WorkflowStartError`, `WorkflowInputSize`, `TaskUpdateCompleted`, `TaskPaused`, `ThreadUncaughtException`, `ActiveWorkersChanged`. `RestClient` emits `HttpApiRequest` via a new process-wide `GlobalDispatcher`; `WorkflowExecutor` emits workflow events; `TaskRunner` emits the new task-runner events.
+  - Harness manifest sets `WORKER_CANONICAL_METRICS=true`; `harness/main.rb` logs which collector is active.
+
 ### Changed
 
 - **BREAKING: Workflow DSL Redesign** - Complete redesign of the workflow DSL for Ruby-idiomatic syntax
@@ -17,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Control flow blocks: `parallel do`, `decide expr do`, `loop_over items do`
   - Auto-generated task reference names
   - Simplified LLM task methods with hash-to-ChatMessage auto-conversion
+
+- **Metrics harmonization** - defaults preserved; legacy metrics emit unchanged when `WORKER_CANONICAL_METRICS` is unset
+  - Constructor convention changed from `MetricsCollector.new(...)` to `MetricsCollector.create(...)`. The previously released collector behavior is preserved as `LegacyMetricsCollector` and remains the default.
+  - Default behavior is unchanged: with no env var set, the metric names and snake_case label conventions (e.g. `task_type`, `error`, `retryable`) shipped in 0.1.0 are preserved.
+  - Rewrote `docs/METRICS_AND_INTERCEPTORS.md` (+362 net lines) with Legacy and Canonical Modes section, both catalogs, metrics-not-applicable-to-Ruby table, label table, and a legacy → canonical migration mapping.
+  - Updated `docs/design/EVENT_INTERCEPTOR_SYSTEM.md`, `docs/design/WORKER_DESIGN.md`, and `AGENTS.md` to reference the factory and gate.
 
 ### Removed
 

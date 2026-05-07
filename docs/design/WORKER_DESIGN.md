@@ -1379,88 +1379,18 @@ end
 
 ### MetricsCollector
 
+The SDK supports legacy and canonical metric surfaces, selected by the
+`WORKER_CANONICAL_METRICS` environment variable. `MetricsCollector.create`
+returns the appropriate collector (`LegacyMetricsCollector` or
+`CanonicalMetricsCollector`):
+
 ```ruby
-module Conductor
-  module Worker
-    class MetricsCollector
-      include TaskRunnerEventsListener
-
-      def initialize(backend: :prometheus)
-        @backend = load_backend(backend)
-      end
-
-      def on_poll_started(event)
-        @backend.increment("task_poll_total", labels: { task_type: event.task_type })
-      end
-
-      def on_poll_completed(event)
-        @backend.observe("task_poll_time_seconds", event.duration_ms / 1000.0,
-                         labels: { task_type: event.task_type })
-      end
-
-      def on_poll_failure(event)
-        @backend.increment("task_poll_error_total",
-                           labels: { task_type: event.task_type, error: event.cause.class.name })
-      end
-
-      def on_task_execution_completed(event)
-        @backend.observe("task_execute_time_seconds", event.duration_ms / 1000.0,
-                         labels: { task_type: event.task_type })
-        @backend.observe("task_result_size_bytes", event.output_size_bytes,
-                         labels: { task_type: event.task_type })
-      end
-
-      def on_task_execution_failure(event)
-        @backend.increment("task_execute_error_total",
-                           labels: {
-                             task_type: event.task_type,
-                             exception: event.cause.class.name,
-                             retryable: event.is_retryable.to_s
-                           })
-      end
-
-      def on_task_update_failure(event)
-        @backend.increment("task_update_failed_total",
-                           labels: { task_type: event.task_type })
-      end
-
-      private
-
-      def load_backend(backend)
-        case backend
-        when :prometheus
-          require_prometheus
-          PrometheusBackend.new
-        when :null, nil
-          NullBackend.new
-        else
-          backend  # Custom backend instance
-        end
-      end
-
-      def require_prometheus
-        require 'prometheus/client'
-      rescue LoadError
-        raise ConfigurationError,
-          "The 'prometheus-client' gem is required for Prometheus metrics. " \
-          "Add `gem 'prometheus-client'` to your Gemfile."
-      end
-    end
-  end
-end
+metrics = Conductor::Worker::Telemetry::MetricsCollector.create(backend: :prometheus)
 ```
 
-### Prometheus Metric Names
-
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `task_poll_total` | Counter | `task_type` | Number of poll operations |
-| `task_poll_time_seconds` | Histogram | `task_type` | Poll latency |
-| `task_poll_error_total` | Counter | `task_type`, `error` | Poll failures |
-| `task_execute_time_seconds` | Histogram | `task_type` | Execution time |
-| `task_execute_error_total` | Counter | `task_type`, `exception`, `retryable` | Execution failures |
-| `task_result_size_bytes` | Histogram | `task_type` | Output size |
-| `task_update_failed_total` | Counter | `task_type` | CRITICAL: Update failures |
+See [docs/METRICS_AND_INTERCEPTORS.md](../METRICS_AND_INTERCEPTORS.md) for the
+full legacy and canonical metrics catalogs, label reference, and migration
+guide.
 
 ---
 
@@ -1637,8 +1567,11 @@ lib/conductor/
 │   ├── listener_registry.rb         # Listener registration helper
 │   └── listeners.rb                 # Listener protocol module
 ├── worker/telemetry/
-│   ├── metrics_collector.rb         # Event-based metrics
-│   ├── prometheus_backend.rb        # Prometheus integration
+│   ├── metrics_collector.rb         # Factory (WORKER_CANONICAL_METRICS gate)
+│   ├── legacy_metrics_collector.rb  # Legacy metric set
+│   ├── canonical_metrics_collector.rb # Canonical metric set
+│   ├── prometheus_backend.rb        # Legacy Prometheus backend
+│   ├── canonical_prometheus_backend.rb # Canonical Prometheus backend
 │   └── null_backend.rb              # No-op backend
 └── exceptions.rb                    # Add NonRetryableError
 ```

@@ -125,8 +125,11 @@ TaskRunner                  SyncEventDispatcher              Listeners
 | `SyncEventDispatcher` | `events/sync_event_dispatcher.rb` | Thread-safe event router |
 | `TaskRunnerEventsListener` | `events/listeners.rb` | Listener protocol (duck typing) |
 | `ListenerRegistry` | `events/listener_registry.rb` | Bulk listener registration |
-| `MetricsCollector` | `telemetry/metrics_collector.rb` | Event-based metrics |
-| `PrometheusBackend` | `telemetry/prometheus_backend.rb` | Prometheus integration |
+| `MetricsCollector` | `telemetry/metrics_collector.rb` | Factory (WORKER_CANONICAL_METRICS gate) |
+| `LegacyMetricsCollector` | `telemetry/legacy_metrics_collector.rb` | Legacy metric set |
+| `CanonicalMetricsCollector` | `telemetry/canonical_metrics_collector.rb` | Canonical metric set |
+| `PrometheusBackend` | `telemetry/prometheus_backend.rb` | Legacy Prometheus backend |
+| `CanonicalPrometheusBackend` | `telemetry/canonical_prometheus_backend.rb` | Canonical Prometheus backend |
 | `NullBackend` | `telemetry/metrics_collector.rb` | No-op backend |
 
 ---
@@ -462,60 +465,18 @@ handler = Conductor::Worker::TaskHandler.new(
 
 ### MetricsCollector
 
-The `MetricsCollector` implements `TaskRunnerEventsListener` to collect metrics:
+The SDK supports legacy and canonical metric surfaces, selected by the
+`WORKER_CANONICAL_METRICS` environment variable. `MetricsCollector.create`
+returns the appropriate collector (`LegacyMetricsCollector` or
+`CanonicalMetricsCollector`):
 
 ```ruby
-module Conductor::Worker::Telemetry
-  class MetricsCollector
-    include Events::TaskRunnerEventsListener
-
-    def initialize(backend: :null)
-      @backend = load_backend(backend)
-    end
-
-    def on_poll_started(event)
-      @backend.increment('task_poll_total', labels: { task_type: event.task_type })
-    end
-
-    def on_poll_completed(event)
-      @backend.observe('task_poll_time_seconds', event.duration_ms / 1000.0,
-                       labels: { task_type: event.task_type })
-    end
-
-    def on_poll_failure(event)
-      @backend.increment('task_poll_error_total',
-                         labels: {
-                           task_type: event.task_type,
-                           error: event.cause.class.name
-                         })
-    end
-
-    def on_task_execution_completed(event)
-      @backend.observe('task_execute_time_seconds', event.duration_ms / 1000.0,
-                       labels: { task_type: event.task_type })
-
-      return unless event.output_size_bytes
-
-      @backend.observe('task_result_size_bytes', event.output_size_bytes,
-                       labels: { task_type: event.task_type })
-    end
-
-    def on_task_execution_failure(event)
-      @backend.increment('task_execute_error_total',
-                         labels: {
-                           task_type: event.task_type,
-                           exception: event.cause.class.name,
-                           retryable: event.is_retryable.to_s
-                         })
-    end
-
-    def on_task_update_failure(event)
-      @backend.increment('task_update_failed_total',
-                         labels: { task_type: event.task_type })
-    end
-  end
-end
+metrics = Conductor::Worker::Telemetry::MetricsCollector.create(backend: :prometheus)
 ```
+
+See [docs/METRICS_AND_INTERCEPTORS.md](../METRICS_AND_INTERCEPTORS.md) for the
+full legacy and canonical metrics catalogs, label reference, and migration
+guide.
 
 ### Backend Protocol
 
@@ -559,54 +520,16 @@ end
 
 ## Prometheus Integration
 
-### PrometheusBackend
+### Prometheus Backends
 
-The `PrometheusBackend` integrates with the `prometheus-client` gem:
+The SDK ships two Prometheus backends:
 
-```ruby
-module Conductor::Worker::Telemetry
-  class PrometheusBackend
-    # Default histogram buckets for time measurements (in seconds)
-    TIME_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10].freeze
+- `PrometheusBackend` -- legacy metric registrations with `task_type` labels.
+- `CanonicalPrometheusBackend` -- canonical metric registrations with `taskType` labels, `status` on time histograms, and canonical bucket boundaries.
 
-    # Default histogram buckets for size measurements (in bytes)
-    SIZE_BUCKETS = [100, 1000, 10_000, 100_000, 1_000_000, 10_000_000].freeze
-
-    def initialize(registry: nil)
-      require 'prometheus/client'
-      @registry = registry || Prometheus::Client.registry
-      setup_metrics
-    end
-
-    def increment(name, labels: {}, value: 1)
-      metric = get_or_create_counter(name)
-      metric.increment(labels: normalize_labels(labels), by: value)
-    end
-
-    def observe(name, value, labels: {})
-      metric = get_or_create_histogram(name)
-      metric.observe(value, labels: normalize_labels(labels))
-    end
-
-    def set(name, value, labels: {})
-      metric = get_or_create_gauge(name)
-      metric.set(value, labels: normalize_labels(labels))
-    end
-  end
-end
-```
-
-### Prometheus Metrics
-
-| Metric Name | Type | Labels | Description |
-|-------------|------|--------|-------------|
-| `task_poll_total` | Counter | `task_type` | Total number of poll operations |
-| `task_poll_time_seconds` | Histogram | `task_type` | Poll latency in seconds |
-| `task_poll_error_total` | Counter | `task_type`, `error` | Total poll failures |
-| `task_execute_time_seconds` | Histogram | `task_type` | Task execution time in seconds |
-| `task_execute_error_total` | Counter | `task_type`, `exception`, `retryable` | Total execution failures |
-| `task_result_size_bytes` | Histogram | `task_type` | Task output size in bytes |
-| `task_update_failed_total` | Counter | `task_type` | **CRITICAL**: Failed task updates |
+Both implement `increment`, `observe`, and `set` and integrate with the
+`prometheus-client` gem. See [docs/METRICS_AND_INTERCEPTORS.md](../METRICS_AND_INTERCEPTORS.md)
+for the full metric catalog emitted by each backend.
 
 ### MetricsServer
 
@@ -663,7 +586,7 @@ config = Conductor::Configuration.new(
 )
 
 # Create metrics collector with Prometheus backend
-metrics = Conductor::Worker::Telemetry::MetricsCollector.new(backend: :prometheus)
+metrics = Conductor::Worker::Telemetry::MetricsCollector.create(backend: :prometheus)
 
 # Start metrics server
 metrics_server = Conductor::Worker::Telemetry::MetricsServer.new(port: 9090)
@@ -756,7 +679,7 @@ end
 handler = Conductor::Worker::TaskHandler.new(
   configuration: config,
   event_listeners: [
-    Conductor::Worker::Telemetry::MetricsCollector.new(backend: :prometheus),
+    Conductor::Worker::Telemetry::MetricsCollector.create(backend: :prometheus),
     LoggingInterceptor.new,
     SentryInterceptor.new
   ]
@@ -948,8 +871,11 @@ lib/conductor/worker/
 │   ├── listeners.rb               # TaskRunnerEventsListener protocol
 │   └── listener_registry.rb       # Bulk listener registration helper
 ├── telemetry/
-│   ├── metrics_collector.rb       # MetricsCollector + NullBackend
-│   └── prometheus_backend.rb      # PrometheusBackend + MetricsServer
+│   ├── metrics_collector.rb       # Factory (WORKER_CANONICAL_METRICS gate) + NullBackend
+│   ├── legacy_metrics_collector.rb  # Legacy metric set
+│   ├── canonical_metrics_collector.rb # Canonical metric set
+│   ├── prometheus_backend.rb      # Legacy PrometheusBackend + MetricsServer
+│   └── canonical_prometheus_backend.rb # Canonical PrometheusBackend
 ├── task_runner.rb                 # Publishes events during polling/execution
 └── task_handler.rb                # Creates dispatcher, registers listeners
 
@@ -961,7 +887,10 @@ spec/conductor/worker/
 │   └── listener_registry_spec.rb
 └── telemetry/
     ├── metrics_collector_spec.rb
-    └── prometheus_backend_spec.rb
+    ├── legacy_metrics_collector_spec.rb
+    ├── canonical_metrics_collector_spec.rb
+    ├── prometheus_backend_spec.rb
+    └── canonical_prometheus_backend_spec.rb
 ```
 
 ---

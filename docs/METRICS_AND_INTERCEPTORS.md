@@ -822,3 +822,68 @@ Or register manually with the event dispatcher:
 dispatcher = handler.event_dispatcher
 dispatcher.register(Conductor::Worker::Events::PollStarted, ->(event) { puts event })
 ```
+
+---
+
+## Detailed Technical Notes -- [Unreleased]
+
+### Path template `uri` label (metric_uri)
+
+The `uri` label on `http_api_client_request_seconds` now carries the **path
+template** (e.g. `/workflow/{workflowId}`) rather than the fully-resolved
+request path (e.g. `/api/workflow/abc-123-def`). This keeps metric label
+cardinality bounded regardless of how many unique workflow IDs, task types, or
+other dynamic path segments pass through the SDK.
+
+**Data flow:**
+
+1. Every API resource method calls `ApiClient#call_api` with a `resource_path`
+   that contains `{placeholder}` tokens (e.g. `/tasks/poll/batch/{taskType}`).
+2. `ApiClient#call_api_no_retry` saves `resource_path` as `metric_uri` *before*
+   substituting path parameters.
+3. The substituted path is concatenated with `server_url` to form the HTTP URL.
+   `metric_uri` is passed alongside as a keyword argument to
+   `RestClient#request`.
+4. `RestClient#emit_http_event` prefers `metric_uri` when present; it only
+   falls back to extracting the path from the full URL when `metric_uri` is
+   `nil` (e.g. for direct `RestClient` calls outside of `ApiClient`).
+5. The `HttpApiRequest` event carries the template string as its `uri` field.
+   `CanonicalMetricsCollector#on_http_api_request` records it as-is into the
+   histogram.
+
+This approach mirrors the Python SDK (`metric_uri` parameter), the Java SDK
+(`PathTemplateTag` on the OkHttp request), and the Go SDK (`WithPathTemplate`
+context value). The base-URL path prefix (e.g. `/api`) is never included
+because `metric_uri` is always the raw API-relative resource path.
+
+### Canonical metrics factory
+
+`MetricsCollector.create(backend:)` selects the collector implementation based
+on the `WORKER_CANONICAL_METRICS` environment variable:
+
+- **Unset / falsy** -- `LegacyMetricsCollector` (default). Emits the 0.1.0
+  metric names and `snake_case` label conventions unchanged.
+- **Truthy** (`true`, `1`, `yes`, case-insensitive) --
+  `CanonicalMetricsCollector`. Emits the harmonized cross-SDK catalog with
+  `camelCase` domain labels, Prometheus histograms with explicit bucket
+  boundaries, and the `exception` label derived from the Ruby exception class
+  name.
+
+`WORKER_LEGACY_METRICS` is reserved for a future phase where canonical becomes
+the default.
+
+### Event system additions
+
+The following event types were added for the canonical collector:
+
+- `HttpApiRequest` -- emitted by `RestClient` via the process-wide
+  `GlobalDispatcher` on every HTTP call.
+- `WorkflowStartError`, `WorkflowInputSize` -- emitted by
+  `WorkflowExecutor`.
+- `TaskUpdateCompleted`, `TaskPaused`, `ThreadUncaughtException`,
+  `ActiveWorkersChanged` -- emitted by `TaskRunner`.
+
+All events flow through the `SyncEventDispatcher` -> listener registry ->
+collector pattern. The `GlobalDispatcher` singleton provides a secondary
+channel so that `RestClient` (which has no direct reference to the task
+handler's dispatcher) can still emit HTTP events.

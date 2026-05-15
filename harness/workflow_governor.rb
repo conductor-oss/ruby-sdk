@@ -4,10 +4,11 @@ module Harness
   # WorkflowGovernor -- starts a configurable number of workflow instances
   # per second in a background thread, feeding work to the simulated workers.
   class WorkflowGovernor
-    def initialize(workflow_executor, workflow_name, workflows_per_second)
+    def initialize(workflow_executor, workflow_name, workflows_per_second, id_sink: nil)
       @workflow_executor = workflow_executor
       @workflow_name = workflow_name
       @workflows_per_second = workflows_per_second
+      @id_sink = id_sink
       @running = false
       @thread = nil
     end
@@ -39,7 +40,8 @@ module Harness
     def start_batch
       @workflows_per_second.times do
         request = Conductor::Http::Models::StartWorkflowRequest.new(name: @workflow_name, version: 1)
-        @workflow_executor.start_workflow(request)
+        id = @workflow_executor.start_workflow(request)
+        @id_sink&.call(id) if id
       end
       puts "Governor: started #{@workflows_per_second} workflow(s)"
     rescue StandardError => e

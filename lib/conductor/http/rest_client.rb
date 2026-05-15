@@ -21,7 +21,7 @@ module Conductor
       end
 
       # Main request method
-      def request(method, url, query: nil, headers: nil, body: nil)
+      def request(method, url, query: nil, headers: nil, body: nil, metric_uri: nil)
         method = method.to_s.upcase
         raise ArgumentError, "Invalid HTTP method: #{method}" unless valid_method?(method)
 
@@ -39,16 +39,16 @@ module Conductor
           status_code = response.status.to_s
 
           result = handle_response(response)
-          emit_http_event(method, url, status_code, start_time)
+          emit_http_event(method, url, status_code, start_time, metric_uri: metric_uri)
           result
         rescue Faraday::TimeoutError => e
-          emit_http_event(method, url, '0', start_time)
+          emit_http_event(method, url, '0', start_time, metric_uri: metric_uri)
           raise ApiError.new("Request timeout: #{e.message}", status: 0, reason: 'Timeout')
         rescue Faraday::ConnectionFailed => e
-          emit_http_event(method, url, '0', start_time)
+          emit_http_event(method, url, '0', start_time, metric_uri: metric_uri)
           raise ApiError.new("Connection error: #{e.message}", status: 0, reason: 'ConnectionFailed')
         rescue ApiError, AuthorizationError
-          emit_http_event(method, url, status_code, start_time)
+          emit_http_event(method, url, status_code, start_time, metric_uri: metric_uri)
           raise
         end
       end
@@ -88,9 +88,9 @@ module Conductor
 
       private
 
-      def emit_http_event(method, url, status, start_time)
+      def emit_http_event(method, url, status, start_time, metric_uri: nil)
         duration_ms = (Time.now - start_time) * 1000
-        uri_path = URI.parse(url).request_uri
+        uri_path = metric_uri || URI.parse(url).request_uri
         event = Conductor::Worker::Events::HttpApiRequest.new(
           method: method, uri: uri_path, status: status, duration_ms: duration_ms
         )

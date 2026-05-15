@@ -129,7 +129,7 @@ All canonical time histograms use buckets (in seconds):
 | `task_poll_time_seconds` | `taskType`, `status` | Poll request latency. `status` is `SUCCESS` or `FAILURE`. |
 | `task_execute_time_seconds` | `taskType`, `status` | Worker function execution duration. `status` is `SUCCESS` or `FAILURE`. |
 | `task_update_time_seconds` | `taskType`, `status` | Task-result update latency. `status` is `SUCCESS` or `FAILURE`. |
-| `http_api_client_request_seconds` | `method`, `uri`, `status` | HTTP API client request latency. `status` is the HTTP status code as a string, or the exception class name on network failure. |
+| `http_api_client_request_seconds` | `method`, `uri`, `status` | HTTP API client request latency. `status` is the HTTP status code as a string, or `"0"` on network failure. |
 
 Each histogram exposes Prometheus series such as:
 
@@ -230,12 +230,12 @@ the Ruby SDK is intentional.
 | `taskType` | Canonical worker metrics | Task definition name. |
 | `workflowType` | Canonical workflow metrics | Workflow definition name. |
 | `version` | `workflow_input_size_bytes` | Workflow version as a string. Empty string when the version is absent. |
-| `status` | Canonical task time metrics | `SUCCESS` or `FAILURE`. For `http_api_client_request_seconds`, the HTTP status code as a string, or the exception class name on failure. |
+| `status` | Canonical task time metrics | `SUCCESS` or `FAILURE`. For `http_api_client_request_seconds`, the HTTP status code as a string (e.g. `"200"`), or `"0"` on network failure. |
 | `exception` | Canonical error counters | Exception class name, such as `Faraday::TimeoutError`. |
 | `error` | Legacy `task_poll_error_total` | Exception class name. Renamed to `exception` in canonical mode. |
 | `retryable` | Legacy `task_execute_error_total` | `true` or `false`. Dropped in canonical mode. |
 | `method` | HTTP metrics | HTTP verb (`GET`, `POST`, etc.). |
-| `uri` | HTTP metrics | Request path from the HTTP client. May contain interpolated identifiers. |
+| `uri` | HTTP metrics | API-relative path template (e.g. `/tasks/poll/batch/{taskType}`). Dynamic path segments retain `{placeholder}` tokens so label cardinality is bounded. |
 
 ---
 
@@ -395,8 +395,10 @@ metrics = Conductor::Worker::Telemetry::MetricsCollector.create(
 
 ### High Cardinality
 
-- Watch the `uri` label on `http_api_client_request_seconds`. The HTTP client
-  may include interpolated path identifiers in the request path.
+- The `uri` label on `http_api_client_request_seconds` uses path templates
+  (e.g. `/workflow/{workflowId}`) to keep cardinality bounded. If you see
+  fully-resolved paths in your metrics, verify that HTTP requests are going
+  through the SDK's `ApiClient` rather than a standalone `RestClient`.
 - Prefer canonical mode for bounded `exception` labels using exception class
   names instead of raw error messages.
 - Avoid embedding user identifiers or unbounded values in task type, workflow

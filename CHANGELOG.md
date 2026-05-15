@@ -15,7 +15,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **BREAKING: Workflow DSL Redesign** -- `Conductor.workflow :name do...end` replaces `ConductorWorkflow.new`; see migration guide below
+- **BREAKING: Workflow DSL Redesign** - Complete redesign of the workflow DSL for Ruby-idiomatic syntax
+  - New entry point: `Conductor.workflow :name do...end` instead of `ConductorWorkflow.new`
+  - Block-based workflow definition with method chaining
+  - Output references using `task[:field]` syntax instead of `task.output('field')`
+  - Input references using `wf[:param]` syntax instead of `workflow.input('param')`
+  - Control flow blocks: `parallel do`, `decide expr do`, `loop_over items do`
+  - Auto-generated task reference names
+  - Simplified LLM task methods with hash-to-ChatMessage auto-conversion
 - Legacy metrics emit unchanged by default; no action required for existing deployments
 - `MetricsCollector.new(...)` replaced by `MetricsCollector.create(...)`; previous behavior preserved as `LegacyMetricsCollector`
 

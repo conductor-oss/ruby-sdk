@@ -14,9 +14,8 @@ module Conductor
     class RestClient
       attr_reader :connection
 
-      def initialize(configuration = nil, event_dispatcher: nil)
+      def initialize(configuration = nil)
         @configuration = configuration
-        @event_dispatcher = event_dispatcher
         @connection = build_connection
       end
 
@@ -94,7 +93,6 @@ module Conductor
         event = Conductor::Worker::Events::HttpApiRequest.new(
           method: method, uri: uri_path, status: status, duration_ms: duration_ms
         )
-        @event_dispatcher&.publish(event)
         Conductor::Worker::Events::GlobalDispatcher.publish(event)
       rescue StandardError
         # Telemetry must never break the HTTP path

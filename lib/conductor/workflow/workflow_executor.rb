@@ -334,6 +334,8 @@ module Conductor
       private
 
       def publish_workflow_input_size(request)
+        return unless @event_dispatcher.has_listeners?(Worker::Events::WorkflowInputSize)
+
         name = request.respond_to?(:name) ? request.name : nil
         return unless name
 

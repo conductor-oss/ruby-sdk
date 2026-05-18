@@ -1067,26 +1067,22 @@ def update_task_with_retry(task_result)
   RETRY_BACKOFFS.each_with_index do |backoff, attempt|
     sleep(backoff) if backoff > 0
 
+    start_time = Time.now
     begin
       @task_client.update_task(task_result)
+      duration_ms = (Time.now - start_time) * 1000
+
+      publish_task_update_completed(task_result, duration_ms)
       return  # Success
     rescue StandardError => e
+      duration_ms = (Time.now - start_time) * 1000
       @logger.error("Task update failed (attempt #{attempt + 1}/#{RETRY_BACKOFFS.size}): #{e.message}")
 
       if attempt == RETRY_BACKOFFS.size - 1
         # All retries exhausted - CRITICAL: task result is lost
         @logger.fatal("CRITICAL: Task update failed after #{RETRY_BACKOFFS.size} attempts. " \
                       "Task #{task_result.task_id} result is LOST.")
-
-        @event_dispatcher.publish(Events::TaskUpdateFailure.new(
-          task_type: @worker.task_definition_name,
-          task_id: task_result.task_id,
-          worker_id: @worker_id,
-          workflow_instance_id: task_result.workflow_instance_id,
-          cause: e,
-          retry_count: RETRY_BACKOFFS.size,
-          task_result: task_result  # Include result for recovery
-        ))
+        publish_task_update_failure(task_result, e, duration_ms)
       end
     end
   end

@@ -2,7 +2,6 @@
 
 require_relative '../events/listeners'
 require_relative '../events/global_dispatcher'
-require_relative '../events/listener_registry'
 
 module Conductor
   module Worker
@@ -134,9 +133,8 @@ module Conductor
         end
 
         def subscribe_to_global_http_events
-          Events::ListenerRegistry.register_task_runner_listener(
-            self, Events::GlobalDispatcher.instance
-          )
+          dispatcher = Events::GlobalDispatcher.instance
+          dispatcher.register(Events::HttpApiRequest, ->(event) { on_http_api_request(event) })
         rescue StandardError
           # Telemetry subscription must never break SDK bootstrap
         end

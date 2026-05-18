@@ -23,8 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Control flow blocks: `parallel do`, `decide expr do`, `loop_over items do`
   - Auto-generated task reference names
   - Simplified LLM task methods with hash-to-ChatMessage auto-conversion
-- Legacy metrics emit unchanged by default; no action required for existing deployments
-- `MetricsCollector.new(...)` replaced by `MetricsCollector.create(...)`; previous behavior preserved as `LegacyMetricsCollector`
+- `MetricsCollector.new(...)` is deprecated; use `MetricsCollector.create(...)` instead. `.new` still works but logs a deprecation warning. The previous implementation is preserved as `LegacyMetricsCollector` and remains the default.
+- Legacy metrics emit unchanged by default; existing dashboards and alerts continue to work without modification
 
 ### Removed
 

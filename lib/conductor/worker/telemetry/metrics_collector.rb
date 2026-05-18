@@ -16,6 +16,13 @@ module Conductor
       # WORKER_LEGACY_METRICS will be checked to allow opting back in to the
       # legacy implementation.
       module MetricsCollector
+        # Backward-compatible shim: delegates to .create so existing
+        # MetricsCollector.new(backend: ...) callers don't crash on upgrade.
+        def self.new(backend: :null, **_opts)
+          warn '[DEPRECATION] MetricsCollector.new is deprecated. Use MetricsCollector.create instead.'
+          create(backend: backend)
+        end
+
         # Create a metrics collector instance gated by environment configuration.
         #
         # @param backend [Symbol, Object] Backend type (:null, :prometheus) or custom backend

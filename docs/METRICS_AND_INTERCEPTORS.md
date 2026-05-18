@@ -220,6 +220,12 @@ Users cross-referencing the harmonization spec or documentation from other
 Conductor SDKs may notice these metrics in other catalogs. Their absence in
 the Ruby SDK is intentional.
 
+### Ractor Runner Limitations
+
+The `RactorTaskRunner` does not currently emit `active_workers` gauge updates
+because each Ractor processes tasks sequentially with no shared count. All
+other canonical and legacy metrics are emitted by the Ractor runner.
+
 ---
 
 ## Labels

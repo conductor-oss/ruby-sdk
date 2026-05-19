@@ -505,8 +505,8 @@ module Conductor
                                     task_type: @worker.task_definition_name,
                                     count: @running_tasks.size
                                   ))
-      rescue StandardError
-        # Telemetry must never break the worker
+      rescue StandardError => e
+        @logger.debug { "Telemetry error (non-fatal): #{e.class}: #{e.message}" }
       end
 
       def publish_uncaught_exception(error)
@@ -514,8 +514,8 @@ module Conductor
                                     cause: error,
                                     task_type: @worker&.task_definition_name
                                   ))
-      rescue StandardError
-        # Telemetry must never break the worker
+      rescue StandardError => e
+        @logger.debug { "Telemetry error (non-fatal): #{e.class}: #{e.message}" }
       end
 
       # Register task definition if configured

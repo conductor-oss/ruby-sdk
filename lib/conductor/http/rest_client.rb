@@ -4,9 +4,8 @@ require 'faraday'
 require 'faraday/net_http_persistent'
 require 'faraday/retry'
 require 'json'
+require 'logger'
 require 'uri'
-require_relative '../worker/events/global_dispatcher'
-require_relative '../worker/events/http_events'
 
 module Conductor
   module Http
@@ -14,8 +13,9 @@ module Conductor
     class RestClient
       attr_reader :connection
 
-      def initialize(configuration = nil)
+      def initialize(configuration = nil, logger: nil)
         @configuration = configuration
+        @logger = logger || Logger.new(File::NULL)
         @connection = build_connection
       end
 
@@ -88,14 +88,16 @@ module Conductor
       private
 
       def emit_http_event(method, url, status, start_time, metric_uri: nil)
+        return unless defined?(Conductor::Worker::Events::GlobalDispatcher)
+
         duration_ms = (Time.now - start_time) * 1000
         uri_path = metric_uri || URI.parse(url).request_uri
         event = Conductor::Worker::Events::HttpApiRequest.new(
           method: method, uri: uri_path, status: status, duration_ms: duration_ms
         )
         Conductor::Worker::Events::GlobalDispatcher.publish(event)
-      rescue StandardError
-        # Telemetry must never break the HTTP path
+      rescue StandardError => e
+        @logger.debug { "Telemetry error (non-fatal): #{e.class}: #{e.message}" }
       end
 
       def build_connection

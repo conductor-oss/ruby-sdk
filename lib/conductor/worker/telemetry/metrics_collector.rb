@@ -27,10 +27,11 @@ module Conductor
         #
         # @param backend [Symbol, Object] Backend type (:null, :prometheus) or custom backend
         # @param subscribe_global_http [Boolean] Auto-subscribe to HTTP events (canonical only)
+        # @param logger [Logger, nil] Optional logger for diagnostic output in rescue blocks
         # @return [LegacyMetricsCollector, CanonicalMetricsCollector]
-        def self.create(backend: :null, subscribe_global_http: true)
+        def self.create(backend: :null, subscribe_global_http: true, logger: nil)
           if canonical_metrics_enabled?
-            CanonicalMetricsCollector.new(backend: backend, subscribe_global_http: subscribe_global_http)
+            CanonicalMetricsCollector.new(backend: backend, subscribe_global_http: subscribe_global_http, logger: logger)
           else
             LegacyMetricsCollector.new(backend: backend)
           end

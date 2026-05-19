@@ -452,8 +452,8 @@ module Conductor
                         cause: error,
                         task_type: @worker&.task_definition_name
                       ))
-      rescue StandardError
-        # Telemetry must never break the worker
+      rescue StandardError => e
+        @logger&.debug { "Telemetry error (non-fatal): #{e.class}: #{e.message}" }
       end
 
       # Publish event - sends to main Ractor if configured, otherwise logs

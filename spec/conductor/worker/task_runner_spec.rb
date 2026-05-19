@@ -283,6 +283,8 @@ RSpec.describe Conductor::Worker::TaskRunner do
   end
 
   describe 'paused worker' do
+    let(:received_events) { [] }
+
     let(:paused_worker) do
       Conductor::Worker::Worker.new('test_task', poll_interval: 100, paused: true) do |task|
         { result: task.input_data['value'] }
@@ -298,10 +300,148 @@ RSpec.describe Conductor::Worker::TaskRunner do
       )
     end
 
+    before do
+      event_dispatcher.register(Conductor::Worker::Events::TaskPaused,
+                                ->(event) { received_events << [:task_paused, event] })
+    end
+
     it 'does not poll when paused' do
       runner.run_once
 
       expect(task_client).not_to have_received(:batch_poll_tasks)
+    end
+
+    it 'publishes TaskPaused event' do
+      runner.run_once
+
+      paused = received_events.find { |e| e[0] == :task_paused }&.last
+      expect(paused).not_to be_nil
+      expect(paused.task_type).to eq('test_task')
+    end
+  end
+
+  describe 'task update completed events' do
+    let(:received_events) { [] }
+
+    let(:task_data) do
+      Conductor::Http::Models::Task.new.tap do |t|
+        t.task_id = 'task-123'
+        t.workflow_instance_id = 'workflow-456'
+        t.task_def_name = 'test_task'
+        t.input_data = { 'value' => 21 }
+      end
+    end
+
+    before do
+      allow(task_client).to receive(:batch_poll_tasks).and_return([task_data])
+
+      event_dispatcher.register(Conductor::Worker::Events::TaskUpdateCompleted,
+                                ->(event) { received_events << [:update_completed, event] })
+    end
+
+    it 'publishes TaskUpdateCompleted with duration_ms on successful update' do
+      runner.run_once
+      sleep(0.5)
+
+      completed = received_events.find { |e| e[0] == :update_completed }&.last
+      expect(completed).not_to be_nil
+      expect(completed.task_type).to eq('test_task')
+      expect(completed.duration_ms).to be_a(Numeric)
+      expect(completed.duration_ms).to be >= 0
+    end
+  end
+
+  describe 'task update failure duration_ms' do
+    let(:received_events) { [] }
+
+    let(:task_data) do
+      Conductor::Http::Models::Task.new.tap do |t|
+        t.task_id = 'task-123'
+        t.workflow_instance_id = 'workflow-456'
+        t.task_def_name = 'test_task'
+        t.input_data = { 'value' => 21 }
+      end
+    end
+
+    before do
+      allow(task_client).to receive(:batch_poll_tasks).and_return([task_data])
+      allow(task_client).to receive(:update_task).and_raise(StandardError.new('Update failed'))
+
+      event_dispatcher.register(Conductor::Worker::Events::TaskUpdateFailure,
+                                ->(event) { received_events << [:update_failure, event] })
+
+      stub_const('Conductor::Worker::TaskRunner::RETRY_BACKOFFS', [0, 0, 0, 0].freeze)
+    end
+
+    it 'includes duration_ms in TaskUpdateFailure event' do
+      runner.run_once
+      sleep(1.0)
+
+      failure = received_events.find { |e| e[0] == :update_failure }&.last
+      expect(failure).not_to be_nil
+      expect(failure.duration_ms).to be_a(Numeric)
+      expect(failure.duration_ms).to be >= 0
+    end
+  end
+
+  describe 'active workers changed events' do
+    let(:received_events) { [] }
+
+    let(:task_data) do
+      Conductor::Http::Models::Task.new.tap do |t|
+        t.task_id = 'task-123'
+        t.workflow_instance_id = 'workflow-456'
+        t.task_def_name = 'test_task'
+        t.input_data = { 'value' => 21 }
+      end
+    end
+
+    before do
+      allow(task_client).to receive(:batch_poll_tasks).and_return([task_data])
+
+      event_dispatcher.register(Conductor::Worker::Events::ActiveWorkersChanged,
+                                ->(event) { received_events << [:active_workers, event] })
+    end
+
+    it 'publishes ActiveWorkersChanged when a task is submitted' do
+      runner.run_once
+      sleep(0.5)
+
+      events = received_events.select { |e| e[0] == :active_workers }
+      expect(events).not_to be_empty
+      last_event = events.last.last
+      expect(last_event.task_type).to eq('test_task')
+      expect(last_event.count).to be_a(Integer)
+    end
+  end
+
+  describe 'uncaught exception events' do
+    it 'publishes ThreadUncaughtException via publish_uncaught_exception' do
+      received_events = []
+      event_dispatcher.register(Conductor::Worker::Events::ThreadUncaughtException,
+                                ->(event) { received_events << event })
+
+      error = RuntimeError.new('unexpected failure')
+      runner.send(:publish_uncaught_exception, error)
+
+      event = received_events.first
+      expect(event).not_to be_nil
+      expect(event.cause).to eq(error)
+      expect(event.task_type).to eq('test_task')
+    end
+
+    it 'does not raise when publish_uncaught_exception itself fails' do
+      broken_dispatcher = Conductor::Worker::Events::SyncEventDispatcher.new
+      broken_dispatcher.register(Conductor::Worker::Events::ThreadUncaughtException,
+                                 ->(_event) { raise 'listener boom' })
+      broken_runner = described_class.new(
+        worker,
+        configuration: configuration,
+        event_dispatcher: broken_dispatcher,
+        logger: logger
+      )
+
+      expect { broken_runner.send(:publish_uncaught_exception, RuntimeError.new('test')) }.not_to raise_error
     end
   end
 end

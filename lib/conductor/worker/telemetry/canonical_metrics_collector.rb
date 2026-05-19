@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'logger'
 require_relative '../events/listeners'
 require_relative '../events/global_dispatcher'
 
@@ -27,8 +28,9 @@ module Conductor
         # @param backend [Symbol, Object] :null, :prometheus, or a custom backend
         # @param subscribe_global_http [Boolean] Auto-subscribe to GlobalDispatcher
         #   for HttpApiRequest events from the HTTP layer (default true).
-        def initialize(backend: :null, subscribe_global_http: true)
+        def initialize(backend: :null, subscribe_global_http: true, logger: nil)
           @backend = load_backend(backend)
+          @logger = logger || Logger.new(File::NULL)
           subscribe_to_global_http_events if subscribe_global_http
         end
 
@@ -135,8 +137,8 @@ module Conductor
         def subscribe_to_global_http_events
           dispatcher = Events::GlobalDispatcher.instance
           dispatcher.register(Events::HttpApiRequest, ->(event) { on_http_api_request(event) })
-        rescue StandardError
-          # Telemetry subscription must never break SDK bootstrap
+        rescue StandardError => e
+          @logger.debug { "Telemetry error (non-fatal): #{e.class}: #{e.message}" }
         end
 
         def load_backend(backend)

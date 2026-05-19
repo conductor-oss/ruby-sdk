@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'logger'
 require 'securerandom'
 require_relative '../configuration'
 require_relative '../http/api_client'
@@ -21,8 +22,9 @@ module Conductor
       # Initialize WorkflowExecutor
       # @param [Configuration] configuration Optional configuration
       # @param [Worker::Events::SyncEventDispatcher, nil] event_dispatcher Optional event dispatcher
-      def initialize(configuration = nil, event_dispatcher: nil)
+      def initialize(configuration = nil, event_dispatcher: nil, logger: nil)
         @configuration = configuration || Configuration.new
+        @logger = logger || Logger.new(File::NULL)
         api_client = Http::ApiClient.new(configuration: @configuration)
         @workflow_api = Http::Api::WorkflowResourceApi.new(api_client)
         @metadata_api = Http::Api::MetadataResourceApi.new(api_client)
@@ -350,8 +352,8 @@ module Conductor
                                     version: request.respond_to?(:version) ? request.version : nil,
                                     size_bytes: input_bytes
                                   ))
-      rescue StandardError
-        # Telemetry must never break workflow starts
+      rescue StandardError => e
+        @logger.debug { "Telemetry error (non-fatal): #{e.class}: #{e.message}" }
       end
 
       def publish_workflow_start_error(request, error)
@@ -363,8 +365,8 @@ module Conductor
                                     version: wf_version,
                                     cause: error
                                   ))
-      rescue StandardError
-        # Telemetry must never break workflow starts
+      rescue StandardError => e
+        @logger.debug { "Telemetry error (non-fatal): #{e.class}: #{e.message}" }
       end
     end
   end

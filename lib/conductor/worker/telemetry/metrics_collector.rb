@@ -34,8 +34,10 @@ module Conductor
         def self.create(backend: :null, subscribe_global_http: true, measure_payload_size: nil, logger: nil)
           if canonical_metrics_enabled?
             mps = measure_payload_size.nil? ? true : measure_payload_size
-            CanonicalMetricsCollector.new(backend: backend, subscribe_global_http: subscribe_global_http,
-                                         measure_payload_size: mps, logger: logger)
+            CanonicalMetricsCollector.new(
+              backend: backend, subscribe_global_http: subscribe_global_http,
+              measure_payload_size: mps, logger: logger
+            )
           else
             mps = measure_payload_size.nil? ? false : measure_payload_size
             LegacyMetricsCollector.new(backend: backend, measure_payload_size: mps)

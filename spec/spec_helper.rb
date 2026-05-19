@@ -14,7 +14,7 @@ RSpec.configure do |config|
     c.syntax = :expect
   end
 
-  config.before(:each) do
+  config.before do
     Conductor::Worker::Events::GlobalDispatcher.reset!
   end
 

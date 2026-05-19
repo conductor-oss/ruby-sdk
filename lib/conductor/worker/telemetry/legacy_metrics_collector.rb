@@ -19,15 +19,18 @@ module Conductor
         include Events::WorkflowEventsListener
         include Events::HttpEventsListener
 
-        def initialize(backend: :null)
+        def initialize(backend: :null, measure_payload_size: false)
           @backend = load_backend(backend)
+          @measure_payload_size = measure_payload_size
         end
 
-        attr_reader :backend
+        attr_reader :backend, :measure_payload_size
 
         def collector_name
           'legacy'
         end
+
+        def stop; end
 
         # --- Real legacy metrics ---
 

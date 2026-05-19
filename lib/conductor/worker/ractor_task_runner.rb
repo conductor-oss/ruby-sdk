@@ -74,7 +74,6 @@ module Conductor
             run_once
           rescue StandardError => e
             @logger.error("[Ractor #{@ractor_id}] Error in polling loop: #{e.message}")
-            publish_uncaught_exception(e)
             sleep(1)
           end
         end

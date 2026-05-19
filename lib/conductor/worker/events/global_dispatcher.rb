@@ -24,6 +24,12 @@ module Conductor
           def publish(event)
             instance.publish(event)
           end
+
+          def http_metrics_enabled?
+            instance.has_listeners?(HttpApiRequest)
+          rescue StandardError
+            false
+          end
         end
       end
     end

@@ -28,13 +28,27 @@ module Conductor
         # @param backend [Symbol, Object] :null, :prometheus, or a custom backend
         # @param subscribe_global_http [Boolean] Auto-subscribe to GlobalDispatcher
         #   for HttpApiRequest events from the HTTP layer (default true).
-        def initialize(backend: :null, subscribe_global_http: true, logger: nil)
+        # @param measure_payload_size [Boolean] Record workflow_input_size_bytes
+        #   (requires JSON serialization; default true). Set false to skip
+        #   serialization overhead for large payloads.
+        def initialize(backend: :null, subscribe_global_http: true, measure_payload_size: true, logger: nil)
           @backend = load_backend(backend)
           @logger = logger || Logger.new(File::NULL)
+          @measure_payload_size = measure_payload_size
+          @http_listener = nil
           subscribe_to_global_http_events if subscribe_global_http
         end
 
-        attr_reader :backend
+        attr_reader :backend, :measure_payload_size
+
+        def stop
+          return unless @http_listener
+
+          Events::GlobalDispatcher.instance.unregister(Events::HttpApiRequest, @http_listener)
+          @http_listener = nil
+        rescue StandardError => e
+          @logger.debug { "Telemetry error (non-fatal): #{e.class}: #{e.message}" }
+        end
 
         def collector_name
           'canonical'
@@ -116,6 +130,8 @@ module Conductor
         end
 
         def on_workflow_input_size(event)
+          return unless @measure_payload_size
+
           @backend.observe('workflow_input_size_bytes', event.size_bytes,
                            labels: { workflowType: event.workflow_type,
                                      version: (event.version || '').to_s })
@@ -135,8 +151,8 @@ module Conductor
         end
 
         def subscribe_to_global_http_events
-          dispatcher = Events::GlobalDispatcher.instance
-          dispatcher.register(Events::HttpApiRequest, ->(event) { on_http_api_request(event) })
+          @http_listener = ->(event) { on_http_api_request(event) }
+          Events::GlobalDispatcher.instance.register(Events::HttpApiRequest, @http_listener)
         rescue StandardError => e
           @logger.debug { "Telemetry error (non-fatal): #{e.class}: #{e.message}" }
         end

@@ -48,6 +48,7 @@ module Conductor
         @running = false
         @mutex = Mutex.new
         @register_task_definitions = register_task_definitions
+        @event_listeners = []
 
         # Register event listeners
         register_listeners(event_listeners) if event_listeners
@@ -260,6 +261,8 @@ module Conductor
           @runners.clear
           @threads.clear
           @ractors.clear
+
+          stop_event_listeners
           @running = false
 
           @logger.info('TaskHandler stopped')
@@ -316,7 +319,16 @@ module Conductor
       # @param listeners [Array<Object>] Listeners to register
       def register_listeners(listeners)
         listeners.each do |listener|
+          @event_listeners << listener
           Events::ListenerRegistry.register_task_runner_listener(listener, @event_dispatcher)
+        end
+      end
+
+      def stop_event_listeners
+        @event_listeners.each do |listener|
+          listener.stop if listener.respond_to?(:stop)
+        rescue StandardError => e
+          @logger.debug { "Error stopping listener: #{e.class}: #{e.message}" }
         end
       end
 

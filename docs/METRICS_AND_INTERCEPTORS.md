@@ -55,6 +55,25 @@ canonical metrics simultaneously. Restart workers after changing
 `WORKER_LEGACY_METRICS` is reserved for a future default-flip phase and is not
 currently read by the Ruby SDK factory.
 
+### Payload Size Metrics
+
+Recording `workflow_input_size_bytes` requires JSON-serializing the workflow
+input to measure its byte size. This is enabled by default in canonical mode
+and disabled in legacy mode. Override explicitly via the factory:
+
+```ruby
+# Canonical mode, but skip the JSON serialization for large payloads
+metrics = MetricsCollector.create(backend: :prometheus, measure_payload_size: false)
+```
+
+### Collector Lifecycle
+
+Both `CanonicalMetricsCollector` and `LegacyMetricsCollector` respond to
+`stop`. Call `stop` to unsubscribe from process-wide dispatchers (e.g. the
+`GlobalDispatcher` used for HTTP metrics). `TaskHandler#stop` calls `stop`
+on all registered event listeners automatically. If you manage a collector
+outside of `TaskHandler`, call `stop` when the collector is no longer needed.
+
 ---
 
 ## Quick Start
@@ -219,6 +238,17 @@ applicable to the Ruby SDK's runtime model:
 Users cross-referencing the harmonization spec or documentation from other
 Conductor SDKs may notice these metrics in other catalogs. Their absence in
 the Ruby SDK is intentional.
+
+### `thread_uncaught_exceptions_total`
+
+The `thread_uncaught_exceptions_total` counter and its collector handler exist
+in the Ruby SDK for API completeness, but the metric is not currently wired to
+any runtime event. The harmonization spec defines it as "incremented when a
+worker thread terminates with an uncaught exception." In SDKs that implement it
+(Java, Go, Rust), it fires only at the thread/goroutine death boundary. Python
+and JavaScript also define the metric surface but do not wire it. Future Ruby
+SDK versions may connect it to `Thread.report_on_exception` or a similar
+mechanism.
 
 ### Ractor Runner Limitations
 
@@ -885,11 +915,16 @@ the default.
 The following event types were added for the canonical collector:
 
 - `HttpApiRequest` -- emitted by `RestClient` via the process-wide
-  `GlobalDispatcher` on every HTTP call.
+  `GlobalDispatcher`, but only when at least one `HttpApiRequest` listener
+  is subscribed (i.e. a `CanonicalMetricsCollector` is active). In legacy
+  mode or with no collector, `RestClient` skips all timing overhead.
 - `WorkflowStartError`, `WorkflowInputSize` -- emitted by
   `WorkflowExecutor`.
-- `TaskUpdateCompleted`, `TaskPaused`, `ThreadUncaughtException`,
-  `ActiveWorkersChanged` -- emitted by `TaskRunner`.
+- `TaskUpdateCompleted`, `TaskPaused`, `ActiveWorkersChanged` -- emitted
+  by `TaskRunner`.
+- `ThreadUncaughtException` -- event class and collector handler exist for
+  API completeness but are not currently emitted by any runner (see
+  [thread_uncaught_exceptions_total](#thread_uncaught_exceptions_total)).
 
 All events flow through the `SyncEventDispatcher` -> listener registry ->
 collector pattern. The `GlobalDispatcher` singleton provides a secondary

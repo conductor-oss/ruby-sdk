@@ -27,7 +27,8 @@ module Conductor
         headers ||= {}
         headers['Content-Type'] ||= 'application/json' if %w[POST PUT PATCH DELETE OPTIONS].include?(method)
 
-        start_time = Time.now
+        timing = http_metrics_enabled?
+        start_time = Time.now if timing
         status_code = '0'
 
         begin
@@ -38,16 +39,16 @@ module Conductor
           status_code = response.status.to_s
 
           result = handle_response(response)
-          emit_http_event(method, url, status_code, start_time, metric_uri: metric_uri)
+          emit_http_event(method, url, status_code, start_time, metric_uri: metric_uri) if timing
           result
         rescue Faraday::TimeoutError => e
-          emit_http_event(method, url, '0', start_time, metric_uri: metric_uri)
+          emit_http_event(method, url, '0', start_time, metric_uri: metric_uri) if timing
           raise ApiError.new("Request timeout: #{e.message}", status: 0, reason: 'Timeout')
         rescue Faraday::ConnectionFailed => e
-          emit_http_event(method, url, '0', start_time, metric_uri: metric_uri)
+          emit_http_event(method, url, '0', start_time, metric_uri: metric_uri) if timing
           raise ApiError.new("Connection error: #{e.message}", status: 0, reason: 'ConnectionFailed')
         rescue ApiError, AuthorizationError
-          emit_http_event(method, url, status_code, start_time, metric_uri: metric_uri)
+          emit_http_event(method, url, status_code, start_time, metric_uri: metric_uri) if timing
           raise
         end
       end
@@ -87,9 +88,12 @@ module Conductor
 
       private
 
-      def emit_http_event(method, url, status, start_time, metric_uri: nil)
-        return unless defined?(Conductor::Worker::Events::GlobalDispatcher)
+      def http_metrics_enabled?
+        defined?(Conductor::Worker::Events::GlobalDispatcher) &&
+          Conductor::Worker::Events::GlobalDispatcher.http_metrics_enabled?
+      end
 
+      def emit_http_event(method, url, status, start_time, metric_uri: nil)
         duration_ms = (Time.now - start_time) * 1000
         uri_path = metric_uri || URI.parse(url).request_uri
         event = Conductor::Worker::Events::HttpApiRequest.new(

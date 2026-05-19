@@ -192,7 +192,6 @@ module Conductor
               sleep(0.001)
             rescue StandardError => e
               @logger.error("Error in fiber polling loop: #{e.message}")
-              publish_uncaught_exception(e)
               sleep(1)
             end
           end

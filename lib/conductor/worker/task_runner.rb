@@ -84,7 +84,6 @@ module Conductor
           rescue StandardError => e
             @logger.error("Error in polling loop: #{e.message}")
             @logger.debug(e.backtrace.join("\n")) if e.backtrace
-            publish_uncaught_exception(e)
             sleep(1) # Brief pause before retrying
           end
         end

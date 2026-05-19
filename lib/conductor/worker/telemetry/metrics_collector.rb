@@ -27,13 +27,18 @@ module Conductor
         #
         # @param backend [Symbol, Object] Backend type (:null, :prometheus) or custom backend
         # @param subscribe_global_http [Boolean] Auto-subscribe to HTTP events (canonical only)
+        # @param measure_payload_size [Boolean, nil] Record workflow_input_size_bytes.
+        #   Defaults to true for canonical, false for legacy. Set explicitly to override.
         # @param logger [Logger, nil] Optional logger for diagnostic output in rescue blocks
         # @return [LegacyMetricsCollector, CanonicalMetricsCollector]
-        def self.create(backend: :null, subscribe_global_http: true, logger: nil)
+        def self.create(backend: :null, subscribe_global_http: true, measure_payload_size: nil, logger: nil)
           if canonical_metrics_enabled?
-            CanonicalMetricsCollector.new(backend: backend, subscribe_global_http: subscribe_global_http, logger: logger)
+            mps = measure_payload_size.nil? ? true : measure_payload_size
+            CanonicalMetricsCollector.new(backend: backend, subscribe_global_http: subscribe_global_http,
+                                         measure_payload_size: mps, logger: logger)
           else
-            LegacyMetricsCollector.new(backend: backend)
+            mps = measure_payload_size.nil? ? false : measure_payload_size
+            LegacyMetricsCollector.new(backend: backend, measure_payload_size: mps)
           end
         end
 

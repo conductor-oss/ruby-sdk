@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Simplified LLM task methods with hash-to-ChatMessage auto-conversion
 - `MetricsCollector.new(...)` is deprecated; use `MetricsCollector.create(...)` instead. `.new` still works but logs a deprecation warning. The previous implementation is preserved as `LegacyMetricsCollector` and remains the default.
 - Legacy metrics emit unchanged by default; existing dashboards and alerts continue to work without modification
+- HTTP request timing (`http_api_client_request_seconds`) is now zero-overhead in legacy mode: `RestClient` only enters the timing path when a canonical collector is subscribed to `GlobalDispatcher`
+- `thread_uncaught_exceptions_total` is no longer incremented for caught exceptions in the polling loop; the metric surface is retained but unwired, matching the Python and JavaScript SDKs
+- Both `CanonicalMetricsCollector` and `LegacyMetricsCollector` now respond to `stop`; `TaskHandler#stop` calls it automatically to unsubscribe from process-wide dispatchers
+- `MetricsCollector.create` accepts `measure_payload_size:` (default `true` for canonical, `false` for legacy) to opt out of `workflow_input_size_bytes` JSON serialization overhead
 
 ### Removed
 

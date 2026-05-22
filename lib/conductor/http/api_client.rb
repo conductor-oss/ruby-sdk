@@ -197,6 +197,8 @@ module Conductor
         return_type = opts[:return_type]
         return_http_data_only = opts[:return_http_data_only] || false
 
+        metric_uri = resource_path
+
         # Replace path parameters
         path_params.each do |key, value|
           resource_path = resource_path.sub("{#{key}}", URI.encode_www_form_component(value.to_s))
@@ -220,7 +222,8 @@ module Conductor
           url,
           query: query_params,
           headers: header_params,
-          body: body ? JSON.generate(body) : nil
+          body: body ? JSON.generate(body) : nil,
+          metric_uri: metric_uri
         )
 
         @last_response = response

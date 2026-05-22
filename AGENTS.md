@@ -300,46 +300,17 @@ end
 
 ### Metrics Collection
 
-The MetricsCollector listens to events and tracks metrics:
+The SDK supports legacy and canonical metric surfaces, selected by the
+`WORKER_CANONICAL_METRICS` environment variable. `MetricsCollector.create`
+returns the appropriate collector:
 
 ```ruby
-class MetricsCollector
-  def on_poll_started(event)
-    increment("task_poll_total", task_type: event.task_type)
-  end
-  
-  def on_poll_completed(event)
-    observe("task_poll_time_seconds", event.duration_ms / 1000.0,
-            task_type: event.task_type)
-  end
-  
-  def on_task_execution_completed(event)
-    observe("task_execute_time_seconds", event.duration_ms / 1000.0,
-            task_type: event.task_type)
-    observe("task_result_size_bytes", event.output_size_bytes,
-            task_type: event.task_type)
-  end
-  
-  def on_task_execution_failure(event)
-    increment("task_execute_error_total",
-              task_type: event.task_type,
-              exception: event.cause.class.name,
-              retryable: event.is_retryable.to_s)
-  end
-end
+metrics = Conductor::Worker::Telemetry::MetricsCollector.create(backend: :prometheus)
 ```
 
-### Prometheus Metrics
-
-| Metric | Type | Labels | Description |
-|--------|------|--------|-------------|
-| `task_poll_total` | Counter | `task_type` | Number of poll operations |
-| `task_poll_time_seconds` | Histogram | `task_type` | Poll latency |
-| `task_poll_error_total` | Counter | `task_type`, `error` | Poll failures |
-| `task_execute_time_seconds` | Histogram | `task_type` | Execution time |
-| `task_execute_error_total` | Counter | `task_type`, `exception`, `retryable` | Execution failures |
-| `task_result_size_bytes` | Histogram | `task_type` | Output size |
-| `task_update_failed_total` | Counter | `task_type` | CRITICAL: Update failures |
+See [docs/METRICS_AND_INTERCEPTORS.md](docs/METRICS_AND_INTERCEPTORS.md) for
+the full legacy and canonical metrics catalogs, label reference, and migration
+guide.
 
 ### Worker Configuration (3-Tier Hierarchy)
 
@@ -436,8 +407,11 @@ lib/conductor/
 │   │   ├── listeners.rb          # Listener protocol
 │   │   └── listener_registry.rb  # Registration helper
 │   └── telemetry/                # Metrics
-│       ├── metrics_collector.rb  # Event-based metrics
-│       └── prometheus_backend.rb # Prometheus integration
+│       ├── metrics_collector.rb  # Factory (WORKER_CANONICAL_METRICS gate)
+│       ├── legacy_metrics_collector.rb  # Legacy metric set
+│       ├── canonical_metrics_collector.rb # Canonical metric set
+│       ├── prometheus_backend.rb # Legacy Prometheus backend
+│       └── canonical_prometheus_backend.rb # Canonical Prometheus backend
 └── workflow/
     ├── dsl/                      # Workflow DSL
     │   ├── workflow_builder.rb   # Core DSL engine (~1000 lines)

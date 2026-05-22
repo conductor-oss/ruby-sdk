@@ -14,6 +14,10 @@ RSpec.configure do |config|
     c.syntax = :expect
   end
 
+  config.before do
+    Conductor::Worker::Events::GlobalDispatcher.reset!
+  end
+
   # Run specs in random order
   config.order = :random
   Kernel.srand config.seed

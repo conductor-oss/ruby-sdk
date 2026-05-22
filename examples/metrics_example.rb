@@ -130,7 +130,7 @@ def main
 
   if PROMETHEUS_AVAILABLE
     # Create metrics collector with Prometheus backend
-    metrics = Conductor::Worker::Telemetry::MetricsCollector.new(backend: :prometheus)
+    metrics = Conductor::Worker::Telemetry::MetricsCollector.create(backend: :prometheus)
 
     # Start metrics HTTP server
     metrics_server = Conductor::Worker::Telemetry::MetricsServer.new(port: metrics_port)
@@ -141,7 +141,7 @@ def main
     puts "Health check: http://localhost:#{metrics_port}/health"
   else
     # Fall back to null metrics (logging only)
-    metrics = Conductor::Worker::Telemetry::MetricsCollector.new(backend: :null)
+    metrics = Conductor::Worker::Telemetry::MetricsCollector.create(backend: :null)
     metrics_server = nil
 
     puts 'Metrics mode: Null (prometheus-client gem not installed)'
@@ -240,7 +240,7 @@ def main_with_custom_backend
   )
 
   custom_backend = CustomMetricsBackend.new
-  metrics = Conductor::Worker::Telemetry::MetricsCollector.new(backend: custom_backend)
+  metrics = Conductor::Worker::Telemetry::MetricsCollector.create(backend: custom_backend)
 
   puts 'Using custom metrics backend...'
 

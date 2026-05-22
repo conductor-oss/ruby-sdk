@@ -6,6 +6,7 @@ require 'conductor'
 require 'conductor/worker/telemetry/prometheus_backend'
 require_relative 'simulated_task_worker'
 require_relative 'workflow_governor'
+require_relative 'workflow_status_probe'
 
 module Harness
   WORKFLOW_NAME = 'ruby_simulated_tasks_workflow'
@@ -28,19 +29,20 @@ module Harness
   def self.main
     $stdout.sync = true
 
-    workflows_per_sec = env_int('HARNESS_WORKFLOWS_PER_SEC', 2)
-    batch_size        = env_int('HARNESS_BATCH_SIZE', 20)
-    poll_interval_ms  = env_int('HARNESS_POLL_INTERVAL_MS', 100)
+    workflows_per_sec  = env_int('HARNESS_WORKFLOWS_PER_SEC', 2)
+    batch_size         = env_int('HARNESS_BATCH_SIZE', 20)
+    poll_interval_ms   = env_int('HARNESS_POLL_INTERVAL_MS', 100)
+    probe_rate_per_sec = env_int('HARNESS_PROBE_RATE_PER_SEC', 0)
 
     metrics_port = env_int('HARNESS_METRICS_PORT', 9991)
 
     configuration = Conductor::Configuration.new
     register_metadata(configuration)
 
-    metrics_collector = Conductor::Worker::Telemetry::MetricsCollector.new(backend: :prometheus)
+    metrics_collector = Conductor::Worker::Telemetry::MetricsCollector.create(backend: :prometheus)
     metrics_server = Conductor::Worker::Telemetry::MetricsServer.new(port: metrics_port)
     metrics_server.start
-    puts "Prometheus metrics server started on port #{metrics_port}"
+    puts "Prometheus metrics server started on port #{metrics_port} (#{metrics_collector.collector_name} metrics)"
 
     workers = SIMULATED_WORKERS.map do |def_entry|
       sim = SimulatedTaskWorker.new(
@@ -68,13 +70,23 @@ module Harness
     )
     task_handler.start
 
-    workflow_executor = Conductor::Workflow::WorkflowExecutor.new(configuration)
-    governor = WorkflowGovernor.new(workflow_executor, WORKFLOW_NAME, workflows_per_sec)
+    workflow_executor = Conductor::Workflow::WorkflowExecutor.new(
+      configuration,
+      event_dispatcher: task_handler.event_dispatcher
+    )
+
+    workflow_client = Conductor::Client::WorkflowClient.new(configuration)
+    probe = WorkflowStatusProbe.new(workflow_client, probe_rate_per_sec)
+    probe.start
+
+    governor = WorkflowGovernor.new(workflow_executor, WORKFLOW_NAME, workflows_per_sec,
+                                    id_sink: probe.method(:offer))
     governor.start
 
     shutdown = proc do
       puts 'Shutting down...'
       governor.stop
+      probe.stop
       task_handler.stop
       exit(0)
     end

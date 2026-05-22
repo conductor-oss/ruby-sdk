@@ -16,7 +16,7 @@ module Conductor
       # - task_update_failed_total (Counter)
       #
       # @example
-      #   collector = MetricsCollector.new(backend: :prometheus)
+      #   collector = MetricsCollector.create(backend: :prometheus)
       #   # Metrics available at default prometheus registry
       class PrometheusBackend
         # Default histogram buckets for time measurements (in seconds)

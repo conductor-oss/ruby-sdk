@@ -1,123 +1,66 @@
 # frozen_string_literal: true
 
-require_relative '../events/listeners'
+require_relative 'legacy_metrics_collector'
+require_relative 'canonical_metrics_collector'
 
 module Conductor
   module Worker
     module Telemetry
-      # MetricsCollector - Collects metrics from worker events
-      # Implements TaskRunnerEventsListener protocol
-      # Uses pluggable backends (null, prometheus, etc.)
-      class MetricsCollector
-        include Events::TaskRunnerEventsListener
+      # MetricsCollector - Factory for creating the appropriate metrics
+      # collector based on environment configuration.
+      #
+      # Currently checks WORKER_CANONICAL_METRICS (default false). When truthy,
+      # returns a CanonicalMetricsCollector; otherwise a LegacyMetricsCollector.
+      #
+      # In a future release, when canonical metrics become the default,
+      # WORKER_LEGACY_METRICS will be checked to allow opting back in to the
+      # legacy implementation.
+      module MetricsCollector
+        # Backward-compatible shim: delegates to .create so existing
+        # MetricsCollector.new(backend: ...) callers don't crash on upgrade.
+        def self.new(backend: :null, **_opts)
+          warn '[DEPRECATION] MetricsCollector.new is deprecated. Use MetricsCollector.create instead.'
+          create(backend: backend)
+        end
 
-        # Initialize metrics collector
+        # Create a metrics collector instance gated by environment configuration.
+        #
         # @param backend [Symbol, Object] Backend type (:null, :prometheus) or custom backend
-        def initialize(backend: :null)
-          @backend = load_backend(backend)
-        end
-
-        # @return [Object] The metrics backend
-        attr_reader :backend
-
-        # --- Event Handlers ---
-
-        def on_poll_started(event)
-          @backend.increment('task_poll_total', labels: { task_type: event.task_type })
-        end
-
-        def on_poll_completed(event)
-          @backend.observe('task_poll_time_seconds', event.duration_ms / 1000.0,
-                           labels: { task_type: event.task_type })
-        end
-
-        def on_poll_failure(event)
-          @backend.increment('task_poll_error_total',
-                             labels: {
-                               task_type: event.task_type,
-                               error: event.cause.class.name
-                             })
-        end
-
-        def on_task_execution_started(event)
-          # Could track active tasks here
-        end
-
-        def on_task_execution_completed(event)
-          @backend.observe('task_execute_time_seconds', event.duration_ms / 1000.0,
-                           labels: { task_type: event.task_type })
-
-          return unless event.output_size_bytes
-
-          @backend.observe('task_result_size_bytes', event.output_size_bytes,
-                           labels: { task_type: event.task_type })
-        end
-
-        def on_task_execution_failure(event)
-          @backend.increment('task_execute_error_total',
-                             labels: {
-                               task_type: event.task_type,
-                               exception: event.cause.class.name,
-                               retryable: event.is_retryable.to_s
-                             })
-        end
-
-        def on_task_update_failure(event)
-          @backend.increment('task_update_failed_total',
-                             labels: { task_type: event.task_type })
-        end
-
-        private
-
-        # Load a metrics backend
-        # @param backend [Symbol, Object] Backend type or instance
-        # @return [Object] Backend instance
-        def load_backend(backend)
-          case backend
-          when :null, nil
-            NullBackend.new
-          when :prometheus
-            load_prometheus_backend
+        # @param subscribe_global_http [Boolean] Auto-subscribe to HTTP events (canonical only)
+        # @param measure_payload_size [Boolean, nil] Record workflow_input_size_bytes.
+        #   Defaults to true for canonical, false for legacy. Set explicitly to override.
+        # @param logger [Logger, nil] Optional logger for diagnostic output in rescue blocks
+        # @return [LegacyMetricsCollector, CanonicalMetricsCollector]
+        def self.create(backend: :null, subscribe_global_http: true, measure_payload_size: nil, logger: nil)
+          if canonical_metrics_enabled?
+            mps = measure_payload_size.nil? ? true : measure_payload_size
+            CanonicalMetricsCollector.new(
+              backend: backend, subscribe_global_http: subscribe_global_http,
+              measure_payload_size: mps, logger: logger
+            )
           else
-            # Assume it's a custom backend instance
-            backend
+            mps = measure_payload_size.nil? ? false : measure_payload_size
+            LegacyMetricsCollector.new(backend: backend, measure_payload_size: mps)
           end
         end
 
-        # Load Prometheus backend (lazy loading)
-        # @return [PrometheusBackend]
-        def load_prometheus_backend
-          require_relative 'prometheus_backend'
-          PrometheusBackend.new
-        rescue LoadError
-          raise ConfigurationError,
-                "The 'prometheus-client' gem is required for Prometheus metrics. " \
-                "Add `gem 'prometheus-client'` to your Gemfile."
+        # @return [Boolean] true when the canonical metric set is selected
+        def self.canonical_metrics_enabled?
+          %w[true 1 yes].include?(ENV.fetch('WORKER_CANONICAL_METRICS', 'false').downcase.strip)
         end
       end
 
       # NullBackend - No-op backend for metrics
       # Used when metrics are disabled or not configured
       class NullBackend
-        # Increment a counter (no-op)
-        # @param name [String] Metric name
-        # @param labels [Hash] Metric labels
         def increment(name, labels: {})
           # No-op
         end
 
-        # Observe a value (no-op)
-        # @param name [String] Metric name
-        # @param value [Numeric] Value to observe
-        # @param labels [Hash] Metric labels
         def observe(name, value, labels: {})
           # No-op
         end
 
-        # Set a gauge value (no-op)
-        # @param name [String] Metric name
-        # @param value [Numeric] Value to set
-        # @param labels [Hash] Metric labels
         def set(name, value, labels: {})
           # No-op
         end

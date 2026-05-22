@@ -53,6 +53,14 @@ spec:
         - name: HARNESS_POLL_INTERVAL_MS
           value: "100"
 
+        # === METRICS IMPLEMENTATION ===
+        # Set to "true" to use the canonical (harmonized) metric set.
+        # Default "false" uses legacy metrics during the deprecation period.
+        # In a future release, canonical will become the default and
+        # WORKER_LEGACY_METRICS will allow opting back into legacy.
+        - name: WORKER_CANONICAL_METRICS
+          value: "true"
+
         ports:
         - name: metrics
           containerPort: 9991

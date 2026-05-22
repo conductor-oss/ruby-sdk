@@ -47,6 +47,95 @@ RSpec.describe 'RactorTaskRunner', if: RUBY_VERSION >= '3.1' && ractor_runner_lo
         expect { runner.shutdown }.not_to raise_error
       end
     end
+
+    describe 'event publishing helpers' do
+      let(:runner) do
+        described_class.new(worker, configuration: configuration, ractor_id: 0)
+      end
+
+      let(:task_result) do
+        Conductor::Http::Models::TaskResult.new.tap do |r|
+          r.task_id = 'task-123'
+          r.workflow_instance_id = 'workflow-456'
+        end
+      end
+
+      before do
+        runner.instance_variable_set(:@worker_id, 'test-worker-ractor-0')
+      end
+
+      describe '#publish_task_update_completed' do
+        it 'publishes a TaskUpdateCompleted event with duration_ms' do
+          published = nil
+          allow(runner).to receive(:publish_event) { |event| published = event }
+
+          runner.send(:publish_task_update_completed, task_result, 42.5)
+
+          expect(published).to be_a(Conductor::Worker::Events::TaskUpdateCompleted)
+          expect(published.task_type).to eq('test_task')
+          expect(published.task_id).to eq('task-123')
+          expect(published.duration_ms).to eq(42.5)
+        end
+      end
+
+      describe '#publish_task_update_failure' do
+        it 'publishes a TaskUpdateFailure event with duration_ms' do
+          published = nil
+          allow(runner).to receive(:publish_event) { |event| published = event }
+
+          error = StandardError.new('update failed')
+          runner.send(:publish_task_update_failure, task_result, error, 99.0)
+
+          expect(published).to be_a(Conductor::Worker::Events::TaskUpdateFailure)
+          expect(published.task_type).to eq('test_task')
+          expect(published.cause).to eq(error)
+          expect(published.duration_ms).to eq(99.0)
+          expect(published.retry_count).to eq(Conductor::Worker::RactorTaskRunner::RETRY_BACKOFFS.size)
+        end
+      end
+
+      describe '#publish_uncaught_exception' do
+        it 'publishes a ThreadUncaughtException event' do
+          published = nil
+          allow(runner).to receive(:publish_event) { |event| published = event }
+
+          error = RuntimeError.new('crash')
+          runner.send(:publish_uncaught_exception, error)
+
+          expect(published).to be_a(Conductor::Worker::Events::ThreadUncaughtException)
+          expect(published.cause).to eq(error)
+          expect(published.task_type).to eq('test_task')
+        end
+
+        it 'does not raise when publish_event fails' do
+          allow(runner).to receive(:publish_event).and_raise(StandardError.new('dispatch error'))
+
+          expect { runner.send(:publish_uncaught_exception, RuntimeError.new('test')) }.not_to raise_error
+        end
+      end
+    end
+
+    describe 'poll_task when paused' do
+      let(:paused_worker) do
+        Conductor::Worker::Worker.new('test_task', poll_interval: 100, paused: true) do |task|
+          { result: task.input_data['value'] }
+        end
+      end
+
+      it 'publishes TaskPaused and returns nil' do
+        runner = described_class.new(paused_worker, configuration: configuration, ractor_id: 0)
+        runner.instance_variable_set(:@worker_id, 'test-worker-ractor-0')
+
+        published = nil
+        allow(runner).to receive(:publish_event) { |event| published = event }
+
+        result = runner.send(:poll_task)
+
+        expect(result).to be_nil
+        expect(published).to be_a(Conductor::Worker::Events::TaskPaused)
+        expect(published.task_type).to eq('test_task')
+      end
+    end
   end
 
   describe Conductor::Worker::RactorSupport do

@@ -187,31 +187,34 @@ module Conductor
         end
       end
 
+      # Published when task update completes successfully
+      class TaskUpdateCompleted < TaskRunnerEvent
+        attr_reader :task_id, :worker_id, :workflow_instance_id, :duration_ms
+
+        def initialize(task_type:, task_id:, worker_id:, workflow_instance_id:, duration_ms:)
+          super(task_type: task_type)
+          @task_id = task_id
+          @worker_id = worker_id
+          @workflow_instance_id = workflow_instance_id
+          @duration_ms = duration_ms
+        end
+
+        def to_h
+          super.merge(
+            task_id: @task_id, worker_id: @worker_id,
+            workflow_instance_id: @workflow_instance_id, duration_ms: @duration_ms
+          )
+        end
+      end
+
       # Published when task update fails after all retries
       # This is a CRITICAL event - the task result is lost
       class TaskUpdateFailure < TaskRunnerEvent
-        # @return [String] Unique task identifier
-        attr_reader :task_id
-        # @return [String] Unique worker identifier
-        attr_reader :worker_id
-        # @return [String] Workflow instance identifier
-        attr_reader :workflow_instance_id
-        # @return [Exception] The exception that caused the failure
-        attr_reader :cause
-        # @return [Integer] Number of retry attempts made
-        attr_reader :retry_count
-        # @return [TaskResult] The task result that failed to update (for recovery)
-        attr_reader :task_result
+        attr_reader :task_id, :worker_id, :workflow_instance_id,
+                    :cause, :retry_count, :task_result, :duration_ms
 
-        # @param task_type [String] Task definition name
-        # @param task_id [String] Unique task identifier
-        # @param worker_id [String] Unique worker identifier
-        # @param workflow_instance_id [String] Workflow instance identifier
-        # @param cause [Exception] The exception that caused the failure
-        # @param retry_count [Integer] Number of retry attempts made
-        # @param task_result [TaskResult] The task result that failed to update
         def initialize(task_type:, task_id:, worker_id:, workflow_instance_id:,
-                       cause:, retry_count:, task_result:)
+                       cause:, retry_count:, task_result:, duration_ms: nil)
           super(task_type: task_type)
           @task_id = task_id
           @worker_id = worker_id
@@ -219,17 +222,48 @@ module Conductor
           @cause = cause
           @retry_count = retry_count
           @task_result = task_result
+          @duration_ms = duration_ms
         end
 
         def to_h
           super.merge(
-            task_id: @task_id,
-            worker_id: @worker_id,
+            task_id: @task_id, worker_id: @worker_id,
             workflow_instance_id: @workflow_instance_id,
-            cause: @cause.class.name,
-            cause_message: @cause.message,
-            retry_count: @retry_count
+            cause: @cause.class.name, cause_message: @cause.message,
+            retry_count: @retry_count, duration_ms: @duration_ms
           )
+        end
+      end
+
+      # Published when a poll iteration is skipped because the worker is paused
+      class TaskPaused < TaskRunnerEvent; end
+
+      # Published when a worker thread terminates with an uncaught exception
+      class ThreadUncaughtException < ConductorEvent
+        attr_reader :cause, :task_type
+
+        def initialize(cause:, task_type: nil)
+          super()
+          @cause = cause
+          @task_type = task_type
+        end
+
+        def to_h
+          super.merge(cause: @cause.class.name, cause_message: @cause.message, task_type: @task_type)
+        end
+      end
+
+      # Published when the active-worker count changes for a task type
+      class ActiveWorkersChanged < TaskRunnerEvent
+        attr_reader :count
+
+        def initialize(task_type:, count:)
+          super(task_type: task_type)
+          @count = count
+        end
+
+        def to_h
+          super.merge(count: @count)
         end
       end
     end

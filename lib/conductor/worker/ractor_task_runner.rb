@@ -183,7 +183,10 @@ module Conductor
       # Poll for a single task
       # @return [Hash, nil] Task data or nil
       def poll_task
-        return nil if @worker.paused
+        if @worker.paused
+          publish_event(Events::TaskPaused.new(task_type: @worker.task_definition_name))
+          return nil
+        end
 
         # Auth failure backoff
         if @auth_failures.positive? && @last_auth_failure_time
@@ -401,27 +404,55 @@ module Conductor
         RETRY_BACKOFFS.each_with_index do |backoff, attempt|
           sleep(backoff) if backoff.positive?
 
+          start_time = Time.now
           begin
             @task_client.update_task(task_result)
+            duration_ms = (Time.now - start_time) * 1000
+
+            publish_task_update_completed(task_result, duration_ms)
             return
           rescue StandardError => e
+            duration_ms = (Time.now - start_time) * 1000
             @logger.error("[Ractor #{@ractor_id}] Update failed (attempt #{attempt + 1}): #{e.message}")
 
             if attempt == RETRY_BACKOFFS.size - 1
               @logger.fatal("[Ractor #{@ractor_id}] CRITICAL: Task #{task_result.task_id} result LOST")
-
-              publish_event(Events::TaskUpdateFailure.new(
-                              task_type: @worker.task_definition_name,
-                              task_id: task_result.task_id,
-                              worker_id: @worker_id,
-                              workflow_instance_id: task_result.workflow_instance_id,
-                              cause: e,
-                              retry_count: RETRY_BACKOFFS.size,
-                              task_result: task_result
-                            ))
+              publish_task_update_failure(task_result, e, duration_ms)
             end
           end
         end
+      end
+
+      def publish_task_update_completed(task_result, duration_ms)
+        publish_event(Events::TaskUpdateCompleted.new(
+                        task_type: @worker.task_definition_name,
+                        task_id: task_result.task_id,
+                        worker_id: @worker_id,
+                        workflow_instance_id: task_result.workflow_instance_id,
+                        duration_ms: duration_ms
+                      ))
+      end
+
+      def publish_task_update_failure(task_result, error, duration_ms)
+        publish_event(Events::TaskUpdateFailure.new(
+                        task_type: @worker.task_definition_name,
+                        task_id: task_result.task_id,
+                        worker_id: @worker_id,
+                        workflow_instance_id: task_result.workflow_instance_id,
+                        cause: error,
+                        retry_count: RETRY_BACKOFFS.size,
+                        task_result: task_result,
+                        duration_ms: duration_ms
+                      ))
+      end
+
+      def publish_uncaught_exception(error)
+        publish_event(Events::ThreadUncaughtException.new(
+                        cause: error,
+                        task_type: @worker&.task_definition_name
+                      ))
+      rescue StandardError => e
+        @logger&.debug { "Telemetry error (non-fatal): #{e.class}: #{e.message}" }
       end
 
       # Publish event - sends to main Ractor if configured, otherwise logs

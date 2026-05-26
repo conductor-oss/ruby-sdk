@@ -3,68 +3,72 @@
 module Conductor
   module Worker
     module Telemetry
-      # PrometheusBackend - Prometheus metrics backend
-      # Uses the prometheus-client gem for metric collection
+      # PrometheusBackend - Prometheus backend for the canonical SDK metric catalog.
       #
-      # Metrics exposed:
-      # - task_poll_total (Counter)
-      # - task_poll_time_seconds (Histogram)
-      # - task_poll_error_total (Counter)
-      # - task_execute_time_seconds (Histogram)
-      # - task_execute_error_total (Counter)
-      # - task_result_size_bytes (Histogram)
-      # - task_update_failed_total (Counter)
-      #
-      # @example
-      #   collector = MetricsCollector.create(backend: :prometheus)
-      #   # Metrics available at default prometheus registry
+      # Pre-registers every metric from the harmonization spec with its canonical
+      # label set and bucket configuration. Uses camelCase domain labels (taskType,
+      # workflowType) per the canonical convention.
       class PrometheusBackend
-        # Default histogram buckets for time measurements (in seconds)
-        TIME_BUCKETS = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10].freeze
-
-        # Default histogram buckets for size measurements (in bytes)
+        TIME_BUCKETS = [0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10].freeze
         SIZE_BUCKETS = [100, 1000, 10_000, 100_000, 1_000_000, 10_000_000].freeze
+
+        COUNTER_LABELS = {
+          'task_poll_total' => %i[taskType],
+          'task_execution_started_total' => %i[taskType],
+          'task_poll_error_total' => %i[taskType exception],
+          'task_execute_error_total' => %i[taskType exception],
+          'task_update_error_total' => %i[taskType exception],
+          'task_paused_total' => %i[taskType],
+          'thread_uncaught_exceptions_total' => %i[exception],
+          'workflow_start_error_total' => %i[workflowType exception]
+        }.freeze
+
+        HISTOGRAM_LABELS = {
+          'task_poll_time_seconds' => %i[taskType status],
+          'task_execute_time_seconds' => %i[taskType status],
+          'task_update_time_seconds' => %i[taskType status],
+          'http_api_client_request_seconds' => %i[method uri status],
+          'task_result_size_bytes' => %i[taskType],
+          'workflow_input_size_bytes' => %i[workflowType version]
+        }.freeze
+
+        GAUGE_LABELS = {
+          'active_workers' => %i[taskType]
+        }.freeze
+
+        HISTOGRAM_BUCKETS = {
+          'task_result_size_bytes' => SIZE_BUCKETS,
+          'workflow_input_size_bytes' => SIZE_BUCKETS
+        }.freeze
 
         def initialize(registry: nil)
           load_prometheus_client
           @registry = registry || Prometheus::Client.registry
+          @counters = {}
+          @histograms = {}
+          @gauges = {}
           setup_metrics
         end
 
-        # Increment a counter
-        # @param name [String] Metric name
-        # @param labels [Hash] Metric labels
-        # @param value [Integer] Value to increment by (default: 1)
         def increment(name, labels: {}, value: 1)
           metric = get_or_create_counter(name)
-          metric.increment(labels: normalize_labels(labels), by: value)
+          metric.increment(labels: normalize_labels(name, labels, COUNTER_LABELS), by: value)
         end
 
-        # Observe a value in a histogram
-        # @param name [String] Metric name
-        # @param value [Numeric] Value to observe
-        # @param labels [Hash] Metric labels
         def observe(name, value, labels: {})
           metric = get_or_create_histogram(name)
-          metric.observe(value, labels: normalize_labels(labels))
+          metric.observe(value, labels: normalize_labels(name, labels, HISTOGRAM_LABELS))
         end
 
-        # Set a gauge value
-        # @param name [String] Metric name
-        # @param value [Numeric] Value to set
-        # @param labels [Hash] Metric labels
         def set(name, value, labels: {})
           metric = get_or_create_gauge(name)
-          metric.set(value, labels: normalize_labels(labels))
+          metric.set(value, labels: normalize_labels(name, labels, GAUGE_LABELS))
         end
 
-        # Get the prometheus registry
-        # @return [Prometheus::Client::Registry]
         attr_reader :registry
 
         private
 
-        # Load prometheus-client gem
         def load_prometheus_client
           require 'prometheus/client'
         rescue LoadError
@@ -73,159 +77,95 @@ module Conductor
                 "Add `gem 'prometheus-client'` to your Gemfile."
         end
 
-        # Each counter declares only the labels it actually receives
-        COUNTER_LABELS = {
-          'task_poll_total' => %i[task_type],
-          'task_poll_error_total' => %i[task_type error],
-          'task_execute_error_total' => %i[task_type exception retryable],
-          'task_update_failed_total' => %i[task_type]
-        }.freeze
-
-        # Setup predefined metrics
         def setup_metrics
-          @counters = {}
-          @histograms = {}
-          @gauges = {}
+          COUNTER_LABELS.each do |name, _|
+            register_counter(name, "Counter for #{name}")
+          end
 
-          register_counter('task_poll_total', 'Total number of task polls', COUNTER_LABELS['task_poll_total'])
-          register_counter('task_poll_error_total', 'Total number of poll errors', COUNTER_LABELS['task_poll_error_total'])
-          register_counter('task_execute_error_total', 'Total number of execution errors', COUNTER_LABELS['task_execute_error_total'])
-          register_counter('task_update_failed_total', 'Total number of failed task updates (CRITICAL)', COUNTER_LABELS['task_update_failed_total'])
+          HISTOGRAM_LABELS.each do |name, _|
+            register_histogram(name, "Histogram for #{name}")
+          end
 
-          register_histogram('task_poll_time_seconds', 'Task poll duration in seconds', TIME_BUCKETS)
-          register_histogram('task_execute_time_seconds', 'Task execution duration in seconds', TIME_BUCKETS)
-          register_histogram('task_result_size_bytes', 'Task result size in bytes', SIZE_BUCKETS)
+          GAUGE_LABELS.each do |name, _|
+            register_gauge(name, "Gauge for #{name}")
+          end
         end
 
-        # Register a counter metric
-        # @param name [String] Metric name
-        # @param docstring [String] Metric description
-        # @param labels [Array<Symbol>] Label keys for this counter
-        def register_counter(name, docstring, labels = %i[task_type])
+        def register_counter(name, docstring)
           metric_name = name.to_sym
-          return if @registry.exist?(metric_name)
-
-          counter = Prometheus::Client::Counter.new(
-            metric_name,
-            docstring: docstring,
-            labels: labels
-          )
-          @registry.register(counter)
-          @counters[name] = counter
+          labels = COUNTER_LABELS.fetch(name, %i[taskType])
+          @counters[name] = register_or_reuse(metric_name) do
+            Prometheus::Client::Counter.new(metric_name, docstring: docstring, labels: labels)
+          end
         end
 
-        # Register a histogram metric
-        # @param name [String] Metric name
-        # @param docstring [String] Metric description
-        # @param buckets [Array<Numeric>] Histogram buckets
-        def register_histogram(name, docstring, buckets)
+        def register_histogram(name, docstring)
           metric_name = name.to_sym
-          return if @registry.exist?(metric_name)
-
-          histogram = Prometheus::Client::Histogram.new(
-            metric_name,
-            docstring: docstring,
-            labels: [:task_type],
-            buckets: buckets
-          )
-          @registry.register(histogram)
-          @histograms[name] = histogram
+          labels = HISTOGRAM_LABELS.fetch(name, %i[taskType])
+          buckets = HISTOGRAM_BUCKETS[name] || TIME_BUCKETS
+          @histograms[name] = register_or_reuse(metric_name) do
+            Prometheus::Client::Histogram.new(metric_name, docstring: docstring,
+                                                           labels: labels, buckets: buckets)
+          end
         end
 
-        # Register a gauge metric
-        # @param name [String] Metric name
-        # @param docstring [String] Metric description
         def register_gauge(name, docstring)
           metric_name = name.to_sym
-          return if @registry.exist?(metric_name)
-
-          gauge = Prometheus::Client::Gauge.new(
-            metric_name,
-            docstring: docstring,
-            labels: [:task_type]
-          )
-          @registry.register(gauge)
-          @gauges[name] = gauge
+          labels = GAUGE_LABELS.fetch(name, %i[taskType])
+          @gauges[name] = register_or_reuse(metric_name) do
+            Prometheus::Client::Gauge.new(metric_name, docstring: docstring, labels: labels)
+          end
         end
 
-        # Get or create a counter metric
-        # @param name [String] Metric name
-        # @return [Prometheus::Client::Counter]
+        def register_or_reuse(metric_name)
+          if @registry.exist?(metric_name)
+            @registry.get(metric_name)
+          else
+            metric = yield
+            @registry.register(metric)
+            metric
+          end
+        end
+
         def get_or_create_counter(name)
-          @counters[name] ||= begin
-            metric_name = name.to_sym
-            if @registry.exist?(metric_name)
-              @registry.get(metric_name)
-            else
-              labels = COUNTER_LABELS.fetch(name, %i[task_type])
-              counter = Prometheus::Client::Counter.new(
-                metric_name,
-                docstring: "Counter for #{name}",
-                labels: labels
-              )
-              @registry.register(counter)
-              counter
-            end
+          @counters[name] ||= register_or_reuse(name.to_sym) do
+            labels = COUNTER_LABELS.fetch(name, %i[taskType])
+            Prometheus::Client::Counter.new(name.to_sym, docstring: "Counter for #{name}", labels: labels)
           end
         end
 
-        # Get or create a histogram metric
-        # @param name [String] Metric name
-        # @return [Prometheus::Client::Histogram]
         def get_or_create_histogram(name)
-          @histograms[name] ||= begin
-            metric_name = name.to_sym
-            if @registry.exist?(metric_name)
-              @registry.get(metric_name)
-            else
-              buckets = name.include?('bytes') ? SIZE_BUCKETS : TIME_BUCKETS
-              histogram = Prometheus::Client::Histogram.new(
-                metric_name,
-                docstring: "Histogram for #{name}",
-                labels: [:task_type],
-                buckets: buckets
-              )
-              @registry.register(histogram)
-              histogram
-            end
+          @histograms[name] ||= register_or_reuse(name.to_sym) do
+            labels = HISTOGRAM_LABELS.fetch(name, %i[taskType])
+            buckets = HISTOGRAM_BUCKETS[name] || TIME_BUCKETS
+            Prometheus::Client::Histogram.new(name.to_sym, docstring: "Histogram for #{name}",
+                                                           labels: labels, buckets: buckets)
           end
         end
 
-        # Get or create a gauge metric
-        # @param name [String] Metric name
-        # @return [Prometheus::Client::Gauge]
         def get_or_create_gauge(name)
-          @gauges[name] ||= begin
-            metric_name = name.to_sym
-            if @registry.exist?(metric_name)
-              @registry.get(metric_name)
-            else
-              gauge = Prometheus::Client::Gauge.new(
-                metric_name,
-                docstring: "Gauge for #{name}",
-                labels: [:task_type]
-              )
-              @registry.register(gauge)
-              gauge
-            end
+          @gauges[name] ||= register_or_reuse(name.to_sym) do
+            labels = GAUGE_LABELS.fetch(name, %i[taskType])
+            Prometheus::Client::Gauge.new(name.to_sym, docstring: "Gauge for #{name}", labels: labels)
           end
         end
 
-        # Normalize labels - convert keys to symbols and filter out nil/empty values
-        # @param labels [Hash] Input labels
-        # @return [Hash] Normalized labels
-        def normalize_labels(labels)
-          result = {}
+        # Align provided labels to the declared label set for the metric.
+        # Missing keys get empty-string defaults; unknown keys are dropped.
+        def normalize_labels(name, labels, schema)
+          symbolized = {}
           labels.each do |key, value|
             next if value.nil?
 
-            sym_key = key.to_sym
-            result[sym_key] = value.to_s
+            symbolized[key.to_sym] = value.to_s
           end
 
-          # Ensure required labels have default values
-          result[:task_type] ||= 'unknown'
-          result
+          declared = schema[name]
+          return symbolized unless declared
+
+          declared.each_with_object({}) do |key, acc|
+            acc[key] = symbolized.key?(key) ? symbolized[key] : ''
+          end
         end
       end
 
@@ -234,7 +174,6 @@ module Conductor
       class MetricsServer
         DEFAULT_PORT = 9090
 
-        # Initialize metrics server
         # @param port [Integer] Port to listen on (default: 9090)
         # @param registry [Prometheus::Client::Registry] Prometheus registry
         def initialize(port: DEFAULT_PORT, registry: nil)

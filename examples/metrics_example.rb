@@ -9,14 +9,22 @@
 # - Track task poll times, execution times, errors, and more
 # - Integrate with Prometheus monitoring
 #
-# Metrics collected:
+# Metrics collected (canonical harmonized set):
 # - task_poll_total: Total number of task polls
-# - task_poll_time_seconds: Task poll duration
-# - task_poll_error_total: Poll errors by error type
-# - task_execute_time_seconds: Task execution duration
-# - task_execute_error_total: Execution errors by exception and retryability
+# - task_poll_time_seconds: Task poll duration (with status label)
+# - task_poll_error_total: Poll errors by exception type
+# - task_execution_started_total: Tasks dispatched to worker function
+# - task_execute_time_seconds: Task execution duration (with status label)
+# - task_execute_error_total: Execution errors by exception
 # - task_result_size_bytes: Task result payload size
-# - task_update_failed_total: Failed task updates (CRITICAL)
+# - task_update_error_total: Failed task updates (CRITICAL)
+# - task_update_time_seconds: Task result update latency
+# - task_paused_total: Workers paused
+# - active_workers: Current active worker count (gauge)
+# - workflow_start_error_total: Workflow start failures
+# - workflow_input_size_bytes: Workflow input payload size
+# - http_api_client_request_seconds: HTTP API client latency
+# - thread_uncaught_exceptions_total: Uncaught thread exceptions
 #
 # Requirements:
 #   gem 'prometheus-client'

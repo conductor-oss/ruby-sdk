@@ -300,17 +300,15 @@ end
 
 ### Metrics Collection
 
-The SDK supports legacy and canonical metric surfaces, selected by the
-`WORKER_CANONICAL_METRICS` environment variable. `MetricsCollector.create`
-returns the appropriate collector:
+`MetricsCollector.create` returns a collector that emits the canonical
+(harmonized) metric surface:
 
 ```ruby
 metrics = Conductor::Worker::Telemetry::MetricsCollector.create(backend: :prometheus)
 ```
 
 See [docs/METRICS_AND_INTERCEPTORS.md](docs/METRICS_AND_INTERCEPTORS.md) for
-the full legacy and canonical metrics catalogs, label reference, and migration
-guide.
+the full metrics catalog and label reference.
 
 ### Worker Configuration (3-Tier Hierarchy)
 
@@ -407,11 +405,8 @@ lib/conductor/
 │   │   ├── listeners.rb          # Listener protocol
 │   │   └── listener_registry.rb  # Registration helper
 │   └── telemetry/                # Metrics
-│       ├── metrics_collector.rb  # Factory (WORKER_CANONICAL_METRICS gate)
-│       ├── legacy_metrics_collector.rb  # Legacy metric set
-│       ├── canonical_metrics_collector.rb # Canonical metric set
-│       ├── prometheus_backend.rb # Legacy Prometheus backend
-│       └── canonical_prometheus_backend.rb # Canonical Prometheus backend
+│       ├── metrics_collector.rb  # MetricsCollector class + NullBackend
+│       └── prometheus_backend.rb # PrometheusBackend + MetricsServer
 └── workflow/
     ├── dsl/                      # Workflow DSL
     │   ├── workflow_builder.rb   # Core DSL engine (~1000 lines)

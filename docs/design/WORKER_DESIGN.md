@@ -1375,10 +1375,8 @@ end
 
 ### MetricsCollector
 
-The SDK supports legacy and canonical metric surfaces, selected by the
-`WORKER_CANONICAL_METRICS` environment variable. `MetricsCollector.create`
-returns the appropriate collector (`LegacyMetricsCollector` or
-`CanonicalMetricsCollector`):
+`MetricsCollector.create` returns a collector that emits the canonical
+(harmonized) metric surface:
 
 ```ruby
 metrics = Conductor::Worker::Telemetry::MetricsCollector.create(backend: :prometheus)
@@ -1563,12 +1561,8 @@ lib/conductor/
 │   ├── listener_registry.rb         # Listener registration helper
 │   └── listeners.rb                 # Listener protocol module
 ├── worker/telemetry/
-│   ├── metrics_collector.rb         # Factory (WORKER_CANONICAL_METRICS gate)
-│   ├── legacy_metrics_collector.rb  # Legacy metric set
-│   ├── canonical_metrics_collector.rb # Canonical metric set
-│   ├── prometheus_backend.rb        # Legacy Prometheus backend
-│   ├── canonical_prometheus_backend.rb # Canonical Prometheus backend
-│   └── null_backend.rb              # No-op backend
+│   ├── metrics_collector.rb         # MetricsCollector class + NullBackend
+│   └── prometheus_backend.rb        # PrometheusBackend + MetricsServer
 └── exceptions.rb                    # Add NonRetryableError
 ```
 

@@ -1600,15 +1600,22 @@ lib/conductor/
 - Integration tests against local Conductor server
 - All Python SDK test scenarios ported
 
-### Phase 2: Ractor-based Runner
+### Phase 2: Ractor-based Runner (Work-in-Progress)
 
 **Goal:** True parallelism for CPU-bound workers.
 
+**Status:** Partially implemented. The `RactorTaskRunner` can poll and execute
+tasks inside Ractors, but the event bridge to the main thread is not yet
+wired. This means metrics, interceptors, and custom event listeners receive
+**no events** from Ractor workers. See
+[Ractor Runner Limitations](../METRICS_AND_INTERCEPTORS.md#ractor-runner-limitations-work-in-progress----untested)
+for details.
+
 **Components:**
-1. `RactorTaskRunner` 
-2. Ractor-local TaskContext storage
-3. Event aggregation via Ractor messaging
-4. `isolation: :ractor` configuration
+1. `RactorTaskRunner` -- implemented, untested end-to-end
+2. Ractor-local TaskContext storage -- implemented
+3. Event aggregation via Ractor messaging -- **not yet implemented**
+4. `isolation: :ractor` configuration -- implemented
 
 **Constraints:**
 - Requires Ruby 3.1+

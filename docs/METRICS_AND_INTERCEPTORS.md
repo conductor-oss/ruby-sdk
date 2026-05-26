@@ -165,11 +165,40 @@ and JavaScript also define the metric surface but do not wire it. Future Ruby
 SDK versions may connect it to `Thread.report_on_exception` or a similar
 mechanism.
 
-### Ractor Runner Limitations
+### Ractor Runner Limitations (Work-in-Progress -- Untested)
 
-The `RactorTaskRunner` does not currently emit `active_workers` gauge updates
-because each Ractor processes tasks sequentially with no shared count. All
-other canonical and legacy metrics are emitted by the Ractor runner.
+> **Warning:** The `RactorTaskRunner` is an experimental work-in-progress.
+> Metrics collection from Ractor-based workers is **best-effort and currently
+> untested**. In practice, **no metrics are delivered** from Ractor workers
+> in the current implementation due to the incomplete event bridge described
+> below. Do not rely on Ractor worker metrics in production.
+
+The event communication channel between Ractor workers and the main-thread
+`SyncEventDispatcher` is not yet implemented. The `TaskHandler` method
+`create_event_receiver_ractor` returns `nil` (with the comment _"Ractor
+event communication needs more work"_), and the spawned event-receiver thread
+exits immediately without forwarding events. Because `RactorTaskRunner`
+receives `nil` as its `event_queue`, the `publish_event` guard
+(`return unless @event_queue`) causes **every event to be silently
+discarded** -- poll events, execution events, update events, and failure
+events alike. As a result, none of the metrics documented in this guide
+(counters, histograms, or gauges) will be populated for Ractor-based
+workers.
+
+Additionally:
+
+- The `active_workers` gauge is **never emitted** by `RactorTaskRunner`.
+  Unlike `TaskRunner` and `FiberTaskRunner`, which call
+  `publish_active_workers` when tasks start and complete, the Ractor runner
+  has no equivalent tracking or publishing logic.
+- The `cleanup` method is a no-op stub.
+- Ractor shutdown in `TaskHandler#stop` is best-effort (`ractor.take` with
+  rescued errors) because Ractors lack a clean shutdown mechanism.
+
+These limitations will be resolved in a future release when proper
+Ractor-to-main-thread event forwarding is implemented. Until then, use
+`:thread` isolation (the default) or `:fiber` execution if you need metrics
+and observability.
 
 ---
 
@@ -777,7 +806,11 @@ The following event types are used by the collector:
 - `PollStarted`, `PollCompleted`, `PollFailure`, `TaskExecutionStarted`,
   `TaskExecutionCompleted`, `TaskExecutionFailure`, `TaskUpdateCompleted`,
   `TaskUpdateFailure`, `TaskPaused`, `ActiveWorkersChanged` -- emitted by
-  `TaskRunner` (and `FiberTaskRunner`).
+  `TaskRunner` (and `FiberTaskRunner`). `RactorTaskRunner` constructs these
+  same events internally but **does not deliver them** to the
+  `SyncEventDispatcher` because the Ractor-to-main-thread event bridge is
+  not yet implemented (see
+  [Ractor Runner Limitations](#ractor-runner-limitations-work-in-progress----untested)).
 - `WorkflowStartError`, `WorkflowInputSize` -- emitted by
   `WorkflowExecutor`.
 - `HttpApiRequest` -- emitted by `RestClient` via the process-wide

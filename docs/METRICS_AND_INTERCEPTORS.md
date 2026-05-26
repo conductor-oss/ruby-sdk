@@ -76,8 +76,9 @@ metrics_server.stop
 ## Metrics Catalog
 
 Timing values are seconds. Size values are bytes. Label names use camelCase.
-Metrics are created lazily and appear in `/metrics` only after the
-corresponding event records them.
+Metric definitions are pre-registered when the Prometheus backend is
+created, but specific label-combination time series only appear in
+`/metrics` after the corresponding event first records them.
 
 ### Counters
 
@@ -358,29 +359,29 @@ the corresponding `on_*` method can listen for these events.
 | Event | When Published | Key Attributes |
 |---|---|---|
 | `TaskExecutionStarted` | Before task execution | `task_type`, `task_id`, `worker_id`, `workflow_instance_id` |
-| `TaskExecutionCompleted` | After successful execution | `task_type`, `task_id`, `duration_ms`, `output_size_bytes` |
-| `TaskExecutionFailure` | When execution fails | `task_type`, `task_id`, `duration_ms`, `cause`, `is_retryable` |
+| `TaskExecutionCompleted` | After successful execution | `task_type`, `task_id`, `worker_id`, `workflow_instance_id`, `duration_ms`, `output_size_bytes` |
+| `TaskExecutionFailure` | When execution fails | `task_type`, `task_id`, `worker_id`, `workflow_instance_id`, `duration_ms`, `cause`, `is_retryable` |
 
 ### Update Events
 
 | Event | When Published | Key Attributes |
 |---|---|---|
-| `TaskUpdateCompleted` | After successful result update | `task_type`, `task_id`, `duration_ms` |
-| `TaskUpdateFailure` | When result update fails after all retries | `task_type`, `task_id`, `retry_count`, `task_result`, `cause` |
+| `TaskUpdateCompleted` | After successful result update | `task_type`, `task_id`, `worker_id`, `workflow_instance_id`, `duration_ms` |
+| `TaskUpdateFailure` | When result update fails after all retries | `task_type`, `task_id`, `worker_id`, `workflow_instance_id`, `cause`, `retry_count`, `task_result`, `duration_ms` |
 
 ### Worker State Events
 
 | Event | When Published | Key Attributes |
 |---|---|---|
 | `TaskPaused` | When a paused worker skips a poll | `task_type` |
-| `ThreadUncaughtException` | When a worker thread raises an uncaught exception | `cause` |
+| `ThreadUncaughtException` | When a worker thread raises an uncaught exception | `cause`, `task_type` |
 | `ActiveWorkersChanged` | When the active worker count changes | `task_type`, `count` |
 
 ### Workflow Events
 
 | Event | When Published | Key Attributes |
 |---|---|---|
-| `WorkflowStartError` | When starting a workflow fails client-side | `workflow_type`, `cause` |
+| `WorkflowStartError` | When starting a workflow fails client-side | `workflow_type`, `version`, `cause` |
 | `WorkflowInputSize` | When a workflow is started | `workflow_type`, `version`, `size_bytes` |
 
 ### HTTP Events
@@ -773,14 +774,16 @@ name.
 
 The following event types are used by the collector:
 
+- `PollStarted`, `PollCompleted`, `PollFailure`, `TaskExecutionStarted`,
+  `TaskExecutionCompleted`, `TaskExecutionFailure`, `TaskUpdateCompleted`,
+  `TaskUpdateFailure`, `TaskPaused`, `ActiveWorkersChanged` -- emitted by
+  `TaskRunner` (and `FiberTaskRunner`).
+- `WorkflowStartError`, `WorkflowInputSize` -- emitted by
+  `WorkflowExecutor`.
 - `HttpApiRequest` -- emitted by `RestClient` via the process-wide
   `GlobalDispatcher`, but only when at least one `HttpApiRequest` listener
   is subscribed (i.e. a `MetricsCollector` is active). With no collector,
   `RestClient` skips all timing overhead.
-- `WorkflowStartError`, `WorkflowInputSize` -- emitted by
-  `WorkflowExecutor`.
-- `TaskUpdateCompleted`, `TaskPaused`, `ActiveWorkersChanged` -- emitted
-  by `TaskRunner`.
 - `ThreadUncaughtException` -- event class and collector handler exist for
   API completeness but are not currently emitted by any runner (see
   [thread_uncaught_exceptions_total](#thread_uncaught_exceptions_total)).

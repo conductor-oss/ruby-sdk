@@ -168,8 +168,8 @@ mechanism.
 ### Ractor Runner Limitations (Work-in-Progress -- Untested)
 
 > **Warning:** The `RactorTaskRunner` is an experimental work-in-progress.
-> Metrics collection from Ractor-based workers is **best-effort and currently
-> untested**. In practice, **no metrics are delivered** from Ractor workers
+> Metrics collection from Ractor-based workers is **partially implemented
+> and not yet functional**. In practice, **no metrics are delivered** from Ractor workers
 > in the current implementation due to the incomplete event bridge described
 > below. Do not rely on Ractor worker metrics in production.
 
@@ -192,7 +192,7 @@ Additionally:
   `publish_active_workers` when tasks start and complete, the Ractor runner
   has no equivalent tracking or publishing logic.
 - The `cleanup` method is a no-op stub.
-- Ractor shutdown in `TaskHandler#stop` is best-effort (`ractor.take` with
+- Ractor shutdown in `TaskHandler#stop` is rudimentary (`ractor.take` with
   rescued errors) because Ractors lack a clean shutdown mechanism.
 
 These limitations will be resolved in a future release when proper

@@ -2,7 +2,6 @@
 
 require 'spec_helper'
 
-# Check if prometheus-client gem is available
 PROMETHEUS_AVAILABLE = begin
   require 'prometheus/client'
   true
@@ -10,7 +9,6 @@ rescue LoadError
   false
 end
 
-# Conditionally load the prometheus backend
 PROMETHEUS_BACKEND_LOADED = begin
   if PROMETHEUS_AVAILABLE
     require_relative '../../../lib/conductor/worker/telemetry/prometheus_backend'
@@ -24,50 +22,53 @@ end
 
 if PROMETHEUS_BACKEND_LOADED
   RSpec.describe Conductor::Worker::Telemetry::PrometheusBackend do
-    # Use a fresh registry for each test to avoid metric conflicts
     let(:registry) { Prometheus::Client::Registry.new }
     let(:backend) { described_class.new(registry: registry) }
 
     describe '#initialize' do
-      it 'creates a backend with the provided registry' do
-        expect(backend.registry).to eq(registry)
+      it 'registers canonical counters' do
+        backend
+        %i[task_poll_total task_execution_started_total task_poll_error_total
+           task_execute_error_total task_update_error_total task_paused_total
+           thread_uncaught_exceptions_total workflow_start_error_total].each do |name|
+          expect(registry.exist?(name)).to be(true), "Expected counter #{name} to be registered"
+        end
       end
 
-      it 'registers common metrics on initialization' do
-        expect(backend.registry.exist?(:task_poll_total)).to be true
-        expect(backend.registry.exist?(:task_poll_error_total)).to be true
-        expect(backend.registry.exist?(:task_execute_error_total)).to be true
-        expect(backend.registry.exist?(:task_update_failed_total)).to be true
-        expect(backend.registry.exist?(:task_poll_time_seconds)).to be true
-        expect(backend.registry.exist?(:task_execute_time_seconds)).to be true
-        expect(backend.registry.exist?(:task_result_size_bytes)).to be true
+      it 'registers canonical histograms' do
+        backend
+        %i[task_poll_time_seconds task_execute_time_seconds task_update_time_seconds
+           http_api_client_request_seconds task_result_size_bytes
+           workflow_input_size_bytes].each do |name|
+          expect(registry.exist?(name)).to be(true), "Expected histogram #{name} to be registered"
+        end
+      end
+
+      it 'registers canonical gauges' do
+        backend
+        expect(registry.exist?(:active_workers)).to be true
       end
     end
 
     describe '#increment' do
-      it 'increments a counter' do
+      it 'increments a counter with camelCase labels' do
         expect do
-          backend.increment('task_poll_total', labels: { task_type: 'my_task' })
-        end.not_to raise_error
-      end
-
-      it 'increments by a custom value' do
-        expect do
-          backend.increment('task_poll_total', labels: { task_type: 'my_task' }, value: 5)
+          backend.increment('task_poll_total', labels: { taskType: 'my_task' })
         end.not_to raise_error
       end
     end
 
     describe '#observe' do
-      it 'observes a histogram value' do
+      it 'observes a time histogram with status label' do
         expect do
-          backend.observe('task_poll_time_seconds', 0.5, labels: { task_type: 'my_task' })
+          backend.observe('task_poll_time_seconds', 0.25,
+                          labels: { taskType: 'my_task', status: 'SUCCESS' })
         end.not_to raise_error
       end
 
-      it 'observes size metrics' do
+      it 'observes a size histogram' do
         expect do
-          backend.observe('task_result_size_bytes', 1024, labels: { task_type: 'my_task' })
+          backend.observe('task_result_size_bytes', 5000, labels: { taskType: 'my_task' })
         end.not_to raise_error
       end
     end
@@ -75,7 +76,21 @@ if PROMETHEUS_BACKEND_LOADED
     describe '#set' do
       it 'sets a gauge value' do
         expect do
-          backend.set('active_workers', 5, labels: { task_type: 'my_task' })
+          backend.set('active_workers', 3, labels: { taskType: 'my_task' })
+        end.not_to raise_error
+      end
+    end
+
+    describe 'label normalization' do
+      it 'fills missing declared labels with empty strings' do
+        expect do
+          backend.increment('task_poll_error_total', labels: { taskType: 'my_task' })
+        end.not_to raise_error
+      end
+
+      it 'drops undeclared labels' do
+        expect do
+          backend.increment('task_poll_total', labels: { taskType: 'my_task', extra: 'nope' })
         end.not_to raise_error
       end
     end
@@ -91,16 +106,10 @@ if PROMETHEUS_BACKEND_LOADED
       server = described_class.new(port: 9091)
       expect(server.port).to eq(9091)
     end
-
-    # NOTE: Actually starting/stopping the server in tests can be flaky
-    # due to port binding issues. These are integration tests.
   end
 else
-  # Test when prometheus is not available
   RSpec.describe 'PrometheusBackend (prometheus-client gem unavailable)' do
     it 'documents that prometheus-client gem is not installed' do
-      # This test documents that the prometheus-client gem is not available
-      # The actual functionality cannot be tested without the gem
       expect(PROMETHEUS_AVAILABLE).to be false
     end
   end

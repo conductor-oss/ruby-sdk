@@ -5,19 +5,15 @@ execution, task result updates, payload sizes, workflow starts, and HTTP API
 client latency. It also provides an event-driven interceptor system for custom
 logging, error tracking, and observability.
 
-This document covers the Ruby SDK metrics emitted by `MetricsCollector.create`,
-`LegacyMetricsCollector`, and `CanonicalMetricsCollector`. It does not cover
-Conductor server metrics or metrics emitted by other SDKs.
+This document covers the Ruby SDK metrics emitted by `MetricsCollector`. It
+does not cover Conductor server metrics or metrics emitted by other SDKs.
 
 ## Table of Contents
 
-- [Legacy and Canonical Modes](#legacy-and-canonical-modes)
 - [Quick Start](#quick-start)
-- [Canonical Metrics Catalog](#canonical-metrics-catalog)
-- [Legacy Metrics Catalog](#legacy-metrics-catalog)
+- [Metrics Catalog](#metrics-catalog)
 - [Metrics Not Applicable to Ruby](#metrics-not-applicable-to-ruby)
 - [Labels](#labels)
-- [Migration from Legacy to Canonical](#migration-from-legacy-to-canonical)
 - [Prometheus Integration](#prometheus-integration)
 - [Custom Metrics Backends](#custom-metrics-backends)
 - [Troubleshooting](#troubleshooting)
@@ -30,61 +26,32 @@ Conductor server metrics or metrics emitted by other SDKs.
 
 ---
 
-## Legacy and Canonical Modes
-
-The Ruby SDK currently supports two mutually exclusive metric surfaces:
-
-- **Legacy metrics** are the default. They preserve the original Ruby SDK names
-  and labels, including snake_case label keys like `task_type`.
-- **Canonical metrics** are opt-in with `WORKER_CANONICAL_METRICS=true`. They
-  use the cross-SDK canonical names, labels, units, and Prometheus histogram
-  bucket boundaries.
-
-`MetricsCollector.create` reads `WORKER_CANONICAL_METRICS` when the collector
-is created:
-
-| Environment variable | Values | Effect |
-|---|---|---|
-| `WORKER_CANONICAL_METRICS` | `true`, `1`, or `yes` (case-insensitive, surrounding whitespace ignored) | Selects `CanonicalMetricsCollector`. |
-| `WORKER_CANONICAL_METRICS` | unset, blank, `false`, `0`, `no`, or any other value | Selects `LegacyMetricsCollector`. |
-
-Only one implementation is active at a time. The SDK does not emit legacy and
-canonical metrics simultaneously. Restart workers after changing
-`WORKER_CANONICAL_METRICS` so the factory creates the desired collector.
-
-`WORKER_LEGACY_METRICS` is reserved for a future default-flip phase and is not
-currently read by the Ruby SDK factory.
-
 ### Payload Size Metrics
 
 Recording `workflow_input_size_bytes` requires JSON-serializing the workflow
-input to measure its byte size. This is enabled by default in canonical mode
-and disabled in legacy mode. Override explicitly via the factory:
+input to measure its byte size. This is enabled by default. Override explicitly
+via the factory:
 
 ```ruby
-# Canonical mode, but skip the JSON serialization for large payloads
+# Skip the JSON serialization for large payloads
 metrics = MetricsCollector.create(backend: :prometheus, measure_payload_size: false)
 ```
 
 ### Collector Lifecycle
 
-Both `CanonicalMetricsCollector` and `LegacyMetricsCollector` respond to
-`stop`. Call `stop` to unsubscribe from process-wide dispatchers (e.g. the
-`GlobalDispatcher` used for HTTP metrics). `TaskHandler#stop` calls `stop`
-on all registered event listeners automatically. If you manage a collector
-outside of `TaskHandler`, call `stop` when the collector is no longer needed.
+`MetricsCollector` responds to `stop`. Call `stop` to unsubscribe from
+process-wide dispatchers (e.g. the `GlobalDispatcher` used for HTTP metrics).
+`TaskHandler#stop` calls `stop` on all registered event listeners
+automatically. If you manage a collector outside of `TaskHandler`, call `stop`
+when the collector is no longer needed.
 
 ---
 
 ## Quick Start
 
-### Enabling Metrics (Legacy, Default)
-
 ```ruby
 require 'conductor'
 
-# MetricsCollector.create checks WORKER_CANONICAL_METRICS and returns
-# the appropriate collector. Default (unset) selects legacy metrics.
 metrics = Conductor::Worker::Telemetry::MetricsCollector.create(backend: :prometheus)
 
 # Start metrics HTTP server
@@ -104,25 +71,16 @@ handler.join
 metrics_server.stop
 ```
 
-### Enabling Canonical Metrics
-
-Set the environment variable before the worker starts:
-
-```shell
-WORKER_CANONICAL_METRICS=true ruby my_worker.rb
-```
-
-The same code above will now return a `CanonicalMetricsCollector` instead.
-
 ---
 
-## Canonical Metrics Catalog
+## Metrics Catalog
 
-Canonical timing values are seconds. Canonical size values are bytes. Label
-names use camelCase. Metrics are created lazily and appear in `/metrics` only
-after the corresponding event records them.
+Timing values are seconds. Size values are bytes. Label names use camelCase.
+Metric definitions are pre-registered when the Prometheus backend is
+created, but specific label-combination time series only appear in
+`/metrics` after the corresponding event first records them.
 
-### Canonical Counters
+### Counters
 
 | Metric | Labels | Description |
 |---|---|---|
@@ -135,9 +93,9 @@ after the corresponding event records them.
 | `thread_uncaught_exceptions_total` | `exception` | Incremented when a worker thread raises an uncaught exception. |
 | `workflow_start_error_total` | `workflowType`, `exception` | Incremented when starting a workflow fails client-side. |
 
-### Canonical Time Histograms
+### Time Histograms
 
-All canonical time histograms use buckets (in seconds):
+All time histograms use buckets (in seconds):
 
 ```text
 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10
@@ -158,9 +116,9 @@ task_execute_time_seconds_count{taskType="my_task",status="SUCCESS"} 50.0
 task_execute_time_seconds_sum{taskType="my_task",status="SUCCESS"} 2.3
 ```
 
-### Canonical Size Histograms
+### Size Histograms
 
-All canonical size histograms use buckets (in bytes):
+All size histograms use buckets (in bytes):
 
 ```text
 100, 1000, 10000, 100000, 1000000, 10000000
@@ -171,54 +129,11 @@ All canonical size histograms use buckets (in bytes):
 | `task_result_size_bytes` | `taskType` | Serialized task result output size. |
 | `workflow_input_size_bytes` | `workflowType`, `version` | Serialized workflow input size. `version` is an empty string when the workflow version is absent. |
 
-### Canonical Gauges
+### Gauges
 
 | Metric | Labels | Description |
 |---|---|---|
 | `active_workers` | `taskType` | Current number of worker threads actively executing tasks. |
-
----
-
-## Legacy Metrics Catalog
-
-Legacy mode is the default so existing dashboards and alerts continue to work.
-Legacy labels use snake_case (`task_type`). Legacy histograms do not carry a
-`status` label. Legacy poll failure does not record poll time -- only the error
-counter is incremented.
-
-### Legacy Counters
-
-| Metric | Labels | Description |
-|---|---|---|
-| `task_poll_total` | `task_type` | Incremented each time polling is done. |
-| `task_poll_error_total` | `task_type`, `error` | Poll failures. `error` is the exception class name. |
-| `task_execute_error_total` | `task_type`, `exception`, `retryable` | Task execution errors. `retryable` is `true` or `false`. |
-| `task_update_failed_total` | `task_type` | Failed task result updates (critical -- task result lost). |
-
-### Legacy Time Histograms
-
-Legacy time histograms use buckets (in seconds):
-
-```text
-0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10
-```
-
-| Metric | Labels | Description |
-|---|---|---|
-| `task_poll_time_seconds` | `task_type` | Poll request latency. Recorded on successful polls only. |
-| `task_execute_time_seconds` | `task_type` | Worker function execution duration. |
-
-### Legacy Size Histograms
-
-| Metric | Labels | Description |
-|---|---|---|
-| `task_result_size_bytes` | `task_type` | Serialized task result output size. Uses the same bucket set as canonical. |
-
-Legacy mode does not emit `task_execution_started_total`,
-`task_update_time_seconds`, `task_paused_total`,
-`thread_uncaught_exceptions_total`, `workflow_start_error_total`,
-`http_api_client_request_seconds`, `workflow_input_size_bytes`, or
-`active_workers`.
 
 ---
 
@@ -250,11 +165,40 @@ and JavaScript also define the metric surface but do not wire it. Future Ruby
 SDK versions may connect it to `Thread.report_on_exception` or a similar
 mechanism.
 
-### Ractor Runner Limitations
+### Ractor Runner Limitations (Work-in-Progress -- Untested)
 
-The `RactorTaskRunner` does not currently emit `active_workers` gauge updates
-because each Ractor processes tasks sequentially with no shared count. All
-other canonical and legacy metrics are emitted by the Ractor runner.
+> **Warning:** The `RactorTaskRunner` is an experimental work-in-progress.
+> Metrics collection from Ractor-based workers is **partially implemented
+> and not yet functional**. In practice, **no metrics are delivered** from Ractor workers
+> in the current implementation due to the incomplete event bridge described
+> below. Do not rely on Ractor worker metrics in production.
+
+The event communication channel between Ractor workers and the main-thread
+`SyncEventDispatcher` is not yet implemented. The `TaskHandler` method
+`create_event_receiver_ractor` returns `nil` (with the comment _"Ractor
+event communication needs more work"_), and the spawned event-receiver thread
+exits immediately without forwarding events. Because `RactorTaskRunner`
+receives `nil` as its `event_queue`, the `publish_event` guard
+(`return unless @event_queue`) causes **every event to be silently
+discarded** -- poll events, execution events, update events, and failure
+events alike. As a result, none of the metrics documented in this guide
+(counters, histograms, or gauges) will be populated for Ractor-based
+workers.
+
+Additionally:
+
+- The `active_workers` gauge is **never emitted** by `RactorTaskRunner`.
+  Unlike `TaskRunner` and `FiberTaskRunner`, which call
+  `publish_active_workers` when tasks start and complete, the Ractor runner
+  has no equivalent tracking or publishing logic.
+- The `cleanup` method is a no-op stub.
+- Ractor shutdown in `TaskHandler#stop` is rudimentary (`ractor.take` with
+  rescued errors) because Ractors lack a clean shutdown mechanism.
+
+These limitations will be resolved in a future release when proper
+Ractor-to-main-thread event forwarding is implemented. Until then, use
+`:thread` isolation (the default) or `:fiber` execution if you need metrics
+and observability.
 
 ---
 
@@ -262,55 +206,13 @@ other canonical and legacy metrics are emitted by the Ractor runner.
 
 | Label | Used by | Values |
 |---|---|---|
-| `task_type` | Legacy worker metrics | Task definition name. Replaced by `taskType` in canonical mode. |
-| `taskType` | Canonical worker metrics | Task definition name. |
-| `workflowType` | Canonical workflow metrics | Workflow definition name. |
+| `taskType` | Worker metrics | Task definition name. |
+| `workflowType` | Workflow metrics | Workflow definition name. |
 | `version` | `workflow_input_size_bytes` | Workflow version as a string. Empty string when the version is absent. |
-| `status` | Canonical task time metrics | `SUCCESS` or `FAILURE`. For `http_api_client_request_seconds`, the HTTP status code as a string (e.g. `"200"`), or `"0"` on network failure. |
-| `exception` | Canonical error counters | Exception class name, such as `Faraday::TimeoutError`. |
-| `error` | Legacy `task_poll_error_total` | Exception class name. Renamed to `exception` in canonical mode. |
-| `retryable` | Legacy `task_execute_error_total` | `true` or `false`. Dropped in canonical mode. |
+| `status` | Task time metrics | `SUCCESS` or `FAILURE`. For `http_api_client_request_seconds`, the HTTP status code as a string (e.g. `"200"`), or `"0"` on network failure. |
+| `exception` | Error counters | Exception class name, such as `Faraday::TimeoutError`. |
 | `method` | HTTP metrics | HTTP verb (`GET`, `POST`, etc.). |
 | `uri` | HTTP metrics | API-relative path template (e.g. `/tasks/poll/batch/{taskType}`). Dynamic path segments retain `{placeholder}` tokens so label cardinality is bounded. |
-
----
-
-## Migration from Legacy to Canonical
-
-Switching to canonical metrics is an explicit metrics-surface cutover. Enable
-`WORKER_CANONICAL_METRICS=true` in a lower environment first, then update
-dashboards, recording rules, and alerts before enabling it in production.
-
-Key changes:
-
-- Legacy task labels use `task_type`; canonical task labels use `taskType`.
-- Legacy poll failure only increments the error counter; canonical also records
-  poll time with `status=FAILURE`.
-- Legacy execution errors carry an extra `retryable` label; canonical drops it.
-- Legacy poll errors use the `error` label; canonical uses `exception`.
-- Legacy `task_update_failed_total` becomes `task_update_error_total` with an
-  added `exception` label.
-- Canonical time histogram buckets start at 0.001s; legacy starts at 0.005s.
-- Canonical adds metrics that legacy never emits: `task_execution_started_total`,
-  `task_update_time_seconds`, `task_paused_total`,
-  `thread_uncaught_exceptions_total`, `workflow_start_error_total`,
-  `http_api_client_request_seconds`, `workflow_input_size_bytes`, and
-  `active_workers`.
-- Canonical and legacy collectors are mutually exclusive. During a migration,
-  compare scrape output by running separate worker instances or environments
-  with and without `WORKER_CANONICAL_METRICS=true`.
-
-Legacy-to-canonical replacements:
-
-| Legacy metric | Canonical replacement |
-|---|---|
-| `task_poll_total{task_type}` | `task_poll_total{taskType}` |
-| `task_poll_time_seconds{task_type}` | `task_poll_time_seconds{taskType,status}` |
-| `task_poll_error_total{task_type,error}` | `task_poll_error_total{taskType,exception}` |
-| `task_execute_time_seconds{task_type}` | `task_execute_time_seconds{taskType,status}` |
-| `task_execute_error_total{task_type,exception,retryable}` | `task_execute_error_total{taskType,exception}` |
-| `task_result_size_bytes{task_type}` | `task_result_size_bytes{taskType}` |
-| `task_update_failed_total{task_type}` | `task_update_error_total{taskType,exception}` |
 
 ---
 
@@ -423,11 +325,11 @@ metrics = Conductor::Worker::Telemetry::MetricsCollector.create(
 
 ### Missing HTTP or Workflow Metrics
 
-- `http_api_client_request_seconds` requires canonical mode. Legacy mode does
-  not emit HTTP metrics. The canonical collector auto-subscribes to
-  `GlobalDispatcher` for `HttpApiRequest` events from the HTTP layer.
-- `workflow_input_size_bytes` and `workflow_start_error_total` require canonical
-  mode and only record when the corresponding `WorkflowExecutor` events fire.
+- `http_api_client_request_seconds` requires the collector to be subscribed to
+  `GlobalDispatcher` for `HttpApiRequest` events from the HTTP layer. This
+  happens automatically when `subscribe_global_http: true` (the default).
+- `workflow_input_size_bytes` and `workflow_start_error_total` only record when
+  the corresponding `WorkflowExecutor` events fire.
 
 ### High Cardinality
 
@@ -435,8 +337,7 @@ metrics = Conductor::Worker::Telemetry::MetricsCollector.create(
   (e.g. `/workflow/{workflowId}`) to keep cardinality bounded. If you see
   fully-resolved paths in your metrics, verify that HTTP requests are going
   through the SDK's `ApiClient` rather than a standalone `RestClient`.
-- Prefer canonical mode for bounded `exception` labels using exception class
-  names instead of raw error messages.
+- The `exception` label uses exception class names to keep cardinality bounded.
 - Avoid embedding user identifiers or unbounded values in task type, workflow
   type, or other label values.
 
@@ -487,29 +388,29 @@ the corresponding `on_*` method can listen for these events.
 | Event | When Published | Key Attributes |
 |---|---|---|
 | `TaskExecutionStarted` | Before task execution | `task_type`, `task_id`, `worker_id`, `workflow_instance_id` |
-| `TaskExecutionCompleted` | After successful execution | `task_type`, `task_id`, `duration_ms`, `output_size_bytes` |
-| `TaskExecutionFailure` | When execution fails | `task_type`, `task_id`, `duration_ms`, `cause`, `is_retryable` |
+| `TaskExecutionCompleted` | After successful execution | `task_type`, `task_id`, `worker_id`, `workflow_instance_id`, `duration_ms`, `output_size_bytes` |
+| `TaskExecutionFailure` | When execution fails | `task_type`, `task_id`, `worker_id`, `workflow_instance_id`, `duration_ms`, `cause`, `is_retryable` |
 
 ### Update Events
 
 | Event | When Published | Key Attributes |
 |---|---|---|
-| `TaskUpdateCompleted` | After successful result update | `task_type`, `task_id`, `duration_ms` |
-| `TaskUpdateFailure` | When result update fails after all retries | `task_type`, `task_id`, `retry_count`, `task_result`, `cause` |
+| `TaskUpdateCompleted` | After successful result update | `task_type`, `task_id`, `worker_id`, `workflow_instance_id`, `duration_ms` |
+| `TaskUpdateFailure` | When result update fails after all retries | `task_type`, `task_id`, `worker_id`, `workflow_instance_id`, `cause`, `retry_count`, `task_result`, `duration_ms` |
 
 ### Worker State Events
 
 | Event | When Published | Key Attributes |
 |---|---|---|
 | `TaskPaused` | When a paused worker skips a poll | `task_type` |
-| `ThreadUncaughtException` | When a worker thread raises an uncaught exception | `cause` |
+| `ThreadUncaughtException` | When a worker thread raises an uncaught exception | `cause`, `task_type` |
 | `ActiveWorkersChanged` | When the active worker count changes | `task_type`, `count` |
 
 ### Workflow Events
 
 | Event | When Published | Key Attributes |
 |---|---|---|
-| `WorkflowStartError` | When starting a workflow fails client-side | `workflow_type`, `cause` |
+| `WorkflowStartError` | When starting a workflow fails client-side | `workflow_type`, `version`, `cause` |
 | `WorkflowInputSize` | When a workflow is started | `workflow_type`, `version`, `size_bytes` |
 
 ### HTTP Events
@@ -824,12 +725,9 @@ end
 
 ### Telemetry Classes
 
-- `Conductor::Worker::Telemetry::MetricsCollector` - Factory module; `.create` returns the appropriate collector
-- `Conductor::Worker::Telemetry::LegacyMetricsCollector` - Pre-harmonization metric set with `task_type` labels
-- `Conductor::Worker::Telemetry::CanonicalMetricsCollector` - Canonical metric set with `taskType` labels
+- `Conductor::Worker::Telemetry::MetricsCollector` - Canonical metric collector; `.create` is a convenience factory
 - `Conductor::Worker::Telemetry::NullBackend` - No-op metrics backend
-- `Conductor::Worker::Telemetry::PrometheusBackend` - Legacy Prometheus backend
-- `Conductor::Worker::Telemetry::CanonicalPrometheusBackend` - Canonical Prometheus backend
+- `Conductor::Worker::Telemetry::PrometheusBackend` - Prometheus backend with canonical label schemas
 - `Conductor::Worker::Telemetry::MetricsServer` - WEBrick HTTP server for `/metrics` and `/health` endpoints
 
 ### Event Classes
@@ -886,42 +784,39 @@ other dynamic path segments pass through the SDK.
    falls back to extracting the path from the full URL when `metric_uri` is
    `nil` (e.g. for direct `RestClient` calls outside of `ApiClient`).
 5. The `HttpApiRequest` event carries the template string as its `uri` field.
-   `CanonicalMetricsCollector#on_http_api_request` records it as-is into the
-   histogram.
+   `MetricsCollector#on_http_api_request` records it as-is into the histogram.
 
 This approach mirrors the Python SDK (`metric_uri` parameter), the Java SDK
 (`PathTemplateTag` on the OkHttp request), and the Go SDK (`WithPathTemplate`
 context value). The base-URL path prefix (e.g. `/api`) is never included
 because `metric_uri` is always the raw API-relative resource path.
 
-### Canonical metrics factory
+### MetricsCollector factory
 
-`MetricsCollector.create(backend:)` selects the collector implementation based
-on the `WORKER_CANONICAL_METRICS` environment variable:
+`MetricsCollector.create(backend:)` is a convenience constructor that returns
+a `MetricsCollector` instance. It emits the harmonized cross-SDK catalog with
+`camelCase` domain labels, Prometheus histograms with explicit bucket
+boundaries, and the `exception` label derived from the Ruby exception class
+name.
 
-- **Unset / falsy** -- `LegacyMetricsCollector` (default). Emits the 0.1.0
-  metric names and `snake_case` label conventions unchanged.
-- **Truthy** (`true`, `1`, `yes`, case-insensitive) --
-  `CanonicalMetricsCollector`. Emits the harmonized cross-SDK catalog with
-  `camelCase` domain labels, Prometheus histograms with explicit bucket
-  boundaries, and the `exception` label derived from the Ruby exception class
-  name.
+### Event system
 
-`WORKER_LEGACY_METRICS` is reserved for a future phase where canonical becomes
-the default.
+The following event types are used by the collector:
 
-### Event system additions
-
-The following event types were added for the canonical collector:
-
-- `HttpApiRequest` -- emitted by `RestClient` via the process-wide
-  `GlobalDispatcher`, but only when at least one `HttpApiRequest` listener
-  is subscribed (i.e. a `CanonicalMetricsCollector` is active). In legacy
-  mode or with no collector, `RestClient` skips all timing overhead.
+- `PollStarted`, `PollCompleted`, `PollFailure`, `TaskExecutionStarted`,
+  `TaskExecutionCompleted`, `TaskExecutionFailure`, `TaskUpdateCompleted`,
+  `TaskUpdateFailure`, `TaskPaused`, `ActiveWorkersChanged` -- emitted by
+  `TaskRunner` (and `FiberTaskRunner`). `RactorTaskRunner` constructs these
+  same events internally but **does not deliver them** to the
+  `SyncEventDispatcher` because the Ractor-to-main-thread event bridge is
+  not yet implemented (see
+  [Ractor Runner Limitations](#ractor-runner-limitations-work-in-progress----untested)).
 - `WorkflowStartError`, `WorkflowInputSize` -- emitted by
   `WorkflowExecutor`.
-- `TaskUpdateCompleted`, `TaskPaused`, `ActiveWorkersChanged` -- emitted
-  by `TaskRunner`.
+- `HttpApiRequest` -- emitted by `RestClient` via the process-wide
+  `GlobalDispatcher`, but only when at least one `HttpApiRequest` listener
+  is subscribed (i.e. a `MetricsCollector` is active). With no collector,
+  `RestClient` skips all timing overhead.
 - `ThreadUncaughtException` -- event class and collector handler exist for
   API completeness but are not currently emitted by any runner (see
   [thread_uncaught_exceptions_total](#thread_uncaught_exceptions_total)).

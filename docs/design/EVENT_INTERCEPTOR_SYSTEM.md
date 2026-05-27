@@ -125,12 +125,10 @@ TaskRunner                  SyncEventDispatcher              Listeners
 | `SyncEventDispatcher` | `events/sync_event_dispatcher.rb` | Thread-safe event router |
 | `TaskRunnerEventsListener` | `events/listeners.rb` | Listener protocol (duck typing) |
 | `ListenerRegistry` | `events/listener_registry.rb` | Bulk listener registration |
-| `MetricsCollector` | `telemetry/metrics_collector.rb` | Factory (WORKER_CANONICAL_METRICS gate) |
-| `LegacyMetricsCollector` | `telemetry/legacy_metrics_collector.rb` | Legacy metric set |
-| `CanonicalMetricsCollector` | `telemetry/canonical_metrics_collector.rb` | Canonical metric set |
-| `PrometheusBackend` | `telemetry/prometheus_backend.rb` | Legacy Prometheus backend |
-| `CanonicalPrometheusBackend` | `telemetry/canonical_prometheus_backend.rb` | Canonical Prometheus backend |
+| `MetricsCollector` | `telemetry/metrics_collector.rb` | Canonical metric collector |
 | `NullBackend` | `telemetry/metrics_collector.rb` | No-op backend |
+| `PrometheusBackend` | `telemetry/prometheus_backend.rb` | Prometheus backend with canonical label schemas |
+| `MetricsServer` | `telemetry/prometheus_backend.rb` | WEBrick HTTP server for `/metrics` |
 
 ---
 
@@ -465,18 +463,15 @@ handler = Conductor::Worker::TaskHandler.new(
 
 ### MetricsCollector
 
-The SDK supports legacy and canonical metric surfaces, selected by the
-`WORKER_CANONICAL_METRICS` environment variable. `MetricsCollector.create`
-returns the appropriate collector (`LegacyMetricsCollector` or
-`CanonicalMetricsCollector`):
+`MetricsCollector.create` returns a collector that emits the canonical
+(harmonized) metric surface:
 
 ```ruby
 metrics = Conductor::Worker::Telemetry::MetricsCollector.create(backend: :prometheus)
 ```
 
 See [docs/METRICS_AND_INTERCEPTORS.md](../METRICS_AND_INTERCEPTORS.md) for the
-full legacy and canonical metrics catalogs, label reference, and migration
-guide.
+full metrics catalog and label reference.
 
 ### Backend Protocol
 
@@ -522,13 +517,11 @@ end
 
 ### Prometheus Backends
 
-The SDK ships two Prometheus backends:
-
-- `PrometheusBackend` -- legacy metric registrations with `task_type` labels.
-- `CanonicalPrometheusBackend` -- canonical metric registrations with `taskType` labels, `status` on time histograms, and canonical bucket boundaries.
-
-Both implement `increment`, `observe`, and `set` and integrate with the
-`prometheus-client` gem. See [docs/METRICS_AND_INTERCEPTORS.md](../METRICS_AND_INTERCEPTORS.md)
+The SDK ships `PrometheusBackend` with canonical metric registrations using
+`taskType` labels, `status` on time histograms, and canonical bucket
+boundaries. It implements `increment`, `observe`, and `set` and integrates
+with the `prometheus-client` gem. See
+[docs/METRICS_AND_INTERCEPTORS.md](../METRICS_AND_INTERCEPTORS.md)
 for the full metric catalog emitted by each backend.
 
 ### MetricsServer
@@ -871,11 +864,8 @@ lib/conductor/worker/
 │   ├── listeners.rb               # TaskRunnerEventsListener protocol
 │   └── listener_registry.rb       # Bulk listener registration helper
 ├── telemetry/
-│   ├── metrics_collector.rb       # Factory (WORKER_CANONICAL_METRICS gate) + NullBackend
-│   ├── legacy_metrics_collector.rb  # Legacy metric set
-│   ├── canonical_metrics_collector.rb # Canonical metric set
-│   ├── prometheus_backend.rb      # Legacy PrometheusBackend + MetricsServer
-│   └── canonical_prometheus_backend.rb # Canonical PrometheusBackend
+│   ├── metrics_collector.rb       # MetricsCollector class + NullBackend
+│   └── prometheus_backend.rb      # PrometheusBackend + MetricsServer
 ├── task_runner.rb                 # Publishes events during polling/execution
 └── task_handler.rb                # Creates dispatcher, registers listeners
 
@@ -887,10 +877,7 @@ spec/conductor/worker/
 │   └── listener_registry_spec.rb
 └── telemetry/
     ├── metrics_collector_spec.rb
-    ├── legacy_metrics_collector_spec.rb
-    ├── canonical_metrics_collector_spec.rb
-    ├── prometheus_backend_spec.rb
-    └── canonical_prometheus_backend_spec.rb
+    └── prometheus_backend_spec.rb
 ```
 
 ---

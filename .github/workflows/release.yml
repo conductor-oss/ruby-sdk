@@ -84,7 +84,7 @@ jobs:
           ruby -e "require 'conductor'; puts 'Gem loads successfully!'"
 
       - name: Upload gem artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: conductor_ruby-${{ needs.verify.outputs.version }}
           path: "*.gem"

@@ -70,17 +70,13 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
-          bundler-cache: true
-
-      - name: Install dependencies
-        run: bundle install
 
       - name: Build gem
         run: gem build conductor_ruby.gemspec
 
       - name: Verify gem
         run: |
-          gem install conductor_ruby-*.gem --local
+          gem install conductor_ruby-*.gem
           ruby -e "require 'conductor'; puts 'Gem loads successfully!'"
 
       - name: Upload gem artifact

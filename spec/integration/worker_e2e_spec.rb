@@ -215,23 +215,19 @@ RSpec.describe 'Worker E2E Integration', :integration do
 
     it 'builds, registers, and executes a workflow using the DSL' do
       # Build workflow using DSL
-      workflow = Conductor::Workflow::ConductorWorkflow.new(
-        executor: Conductor::Workflow::WorkflowExecutor.new(IntegrationHelper.configuration)
-      )
-
       dsl_wf_name = IntegrationHelper.test_name('dsl_workflow')
+      dsl_task_name = task_name # capture the `let` into a local: the block below is
+      # instance_eval'd against the WorkflowBuilder, so bare method calls (like the
+      # `task_name` helper) wouldn't resolve there, but closed-over locals still do.
+      executor = Conductor::Workflow::WorkflowExecutor.new(configuration)
 
-      workflow.name = dsl_wf_name
-      workflow.version = 1
-      workflow.description = 'DSL integration test'
-      workflow.timeout_seconds = 300
-      workflow.owner_email = 'test@example.com'
+      workflow = Conductor.workflow(dsl_wf_name, version: 1, description: 'DSL integration test',
+                                                  executor: executor) do
+        timeout 300
+        owner_email 'test@example.com'
 
-      # Add a simple task
-      simple = Conductor::Workflow::SimpleTask.new(task_name, "#{task_name}_dsl_ref")
-      simple.input('value', '${workflow.input.value}')
-
-      workflow >> simple
+        simple dsl_task_name, value: wf[:value]
+      end
 
       # Register the workflow
       wf_def = workflow.to_workflow_def

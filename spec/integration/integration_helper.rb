@@ -32,7 +32,7 @@ module IntegrationHelper
       key_id = ENV.fetch('CONDUCTOR_AUTH_KEY', nil)
       key_secret = ENV.fetch('CONDUCTOR_AUTH_SECRET', nil)
       if key_id && key_secret
-        config.authentication_settings = Conductor::Configuration::AuthenticationSettings.new(
+        config.authentication_settings = Conductor::AuthenticationSettings.new(
           key_id: key_id,
           key_secret: key_secret
         )

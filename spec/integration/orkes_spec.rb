@@ -353,15 +353,10 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
     it 'creates and registers a workflow using the DSL' do
       # Build workflow using DSL
-      workflow = Conductor::Workflow::ConductorWorkflow.new(executor: workflow_executor)
-      workflow.name = workflow_name
-      workflow.version = 1
-      workflow.description = 'Ruby SDK DSL test on Orkes'
-
-      # Add a simple set variable task
-      set_var = Conductor::Workflow::SetVariableTask.new('set_greeting')
-      set_var.input('greeting', '${workflow.input.name}')
-      workflow.add(set_var)
+      workflow = Conductor.workflow(workflow_name, version: 1, description: 'Ruby SDK DSL test on Orkes',
+                                                    executor: workflow_executor) do
+        set greeting: wf[:name]
+      end
 
       # Register the workflow
       workflow.register(overwrite: true)

@@ -3,6 +3,13 @@ services:
     image: conductoross/conductor:${OSS_CONDUCTOR_VERSION:-latest}
     environment:
       - CONFIG_PROP=config-postgres.properties
+      # Dummy, non-sensitive value so OSS's bundled env-backed SecretsDAO has
+      # something real to read back in spec/integration/orkes_spec.rb (get/list/
+      # exists). OSS Conductor has no authentication at all, so an
+      # unauthenticated /api/secrets/{key} read doesn't change the threat
+      # model versus any other unauthenticated OSS endpoint -- don't put a
+      # real credential here.
+      - CONDUCTOR_SECRET_RUBY_SDK_INTEGRATION_TEST=ruby-sdk-oss-secret-value
     ports:
       - "8080:8080"
     healthcheck:

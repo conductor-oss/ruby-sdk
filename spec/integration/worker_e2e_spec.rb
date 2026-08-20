@@ -222,7 +222,7 @@ RSpec.describe 'Worker E2E Integration', :integration do
       executor = Conductor::Workflow::WorkflowExecutor.new(configuration)
 
       workflow = Conductor.workflow(dsl_wf_name, version: 1, description: 'DSL integration test',
-                                                  executor: executor) do
+                                                 executor: executor) do
         timeout 300
         owner_email 'test@example.com'
 

@@ -381,11 +381,14 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
     end
 
     it 'search - searches workflows with query' do
-      # Search for our workflow by name
+      # Search for our workflow by name. Use the portable `field = "value"` query
+      # syntax (not Lucene `field:value` colon syntax) so this also works against
+      # OSS Conductor's default Postgres-backed indexing, which only understands
+      # `=`/`>`/`<`/`IN` conditions, not full Lucene grammar.
       results = workflow_api.search(
         start: 0,
         size: 10,
-        query: "workflowType:#{test_id}_simple_workflow"
+        query: "workflowType = \"#{test_id}_simple_workflow\""
       )
 
       expect(results).not_to be_nil

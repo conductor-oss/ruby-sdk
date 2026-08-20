@@ -445,10 +445,14 @@ RSpec.describe 'Task Operations Integration', skip: !ENV['CONDUCTOR_INTEGRATION'
     end
 
     it 'search - with query filter' do
+      # Use the portable `field = "value"` query syntax (not Lucene `field:value`
+      # colon syntax) so this also works against OSS Conductor's default
+      # Postgres-backed indexing, which only understands `=`/`>`/`<`/`IN`
+      # conditions, not full Lucene grammar.
       results = task_api.search(
         start: 0,
         size: 5,
-        query: "taskType:#{test_id}_simple_task"
+        query: "taskType = \"#{test_id}_simple_task\""
       )
 
       expect(results).not_to be_nil

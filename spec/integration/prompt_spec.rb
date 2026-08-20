@@ -42,6 +42,15 @@ RSpec.describe 'Prompt API Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     skip "Orkes free tier limit reached: #{error.message}"
   end
 
+  # Prompt template management is not implemented in OSS Conductor: there is no
+  # PromptResource/DAO. The `agentspan` module's `PromptTemplateRef` is only an
+  # inert, unresolved reference field on AGENT tasks -- nothing ever persists or
+  # looks up a named template by content. See orkes_spec.rb's PromptClient tests
+  # for the equivalent OSS-aware gating.
+  before do
+    skip 'Prompt template management API not implemented in OSS Conductor' if ENV['CONDUCTOR_SERVER_TYPE'] == 'oss'
+  end
+
   describe 'Prompt CRUD Operations' do
     let(:prompt_name) { "#{test_id}_test_prompt" }
     let(:prompt_template) do

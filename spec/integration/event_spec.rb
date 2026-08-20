@@ -394,8 +394,10 @@ RSpec.describe 'Event Handler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] 
           event_api.get_queue_config(queue_type, queue_name)
         end.to raise_error(Conductor::ApiError) { |e| expect(e.status).to eq(404) }
       rescue Conductor::ApiError => e
-        # Queue operations may not be available
-        if e.status == 501 || e.message.include?('not supported')
+        # Queue operations may not be available. OSS Conductor doesn't register this route at
+        # all (plain 404), whereas Orkes Cloud registers it but deprecates it in favor of the
+        # integrations API (400/501/403 below).
+        if e.status == 404 || e.status == 501 || e.message.include?('not supported')
           skip 'Queue configuration API not available in this environment'
         elsif e.status == 400 && e.message.include?('integrations API')
           skip 'Queue configuration is managed via integrations API in Orkes Cloud'

@@ -45,6 +45,10 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
     skip "Orkes free tier limit reached: #{error.message}"
   end
 
+  def oss?
+    ENV['CONDUCTOR_SERVER_TYPE'] == 'oss'
+  end
+
   # Helper to get workflow status
   def get_status(workflow)
     workflow.is_a?(Hash) ? workflow['status'] : workflow.status
@@ -577,6 +581,12 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
     let(:workflow_id) { @workflow_id }
 
     before do
+      if oss?
+        skip 'update_workflow_state not implemented in OSS Conductor (no POST /workflow/{id}/variables ' \
+             'route; this is an Orkes-only addition, distinct from the SET_VARIABLE task type which ' \
+             'OSS does support)'
+      end
+
       begin
         workflow_def = Conductor::Http::Models::WorkflowDef.new(
           name: "#{test_id}_wait_workflow",

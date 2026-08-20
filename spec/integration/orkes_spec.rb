@@ -157,6 +157,13 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
   describe 'SchemaClient' do
     let(:schema_client) { clients.get_schema_client }
 
+    before do
+      if oss?
+        skip 'Schema registry API not implemented in OSS Conductor (SchemaDef is only an inline ' \
+             'WorkflowDef/TaskDef field; there is no standalone SchemaResource/DAO)'
+      end
+    end
+
     it 'lists all schemas' do
       # This should work even on free tier
       all_schemas = schema_client.get_all_schemas
@@ -213,6 +220,14 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
   describe 'AuthorizationClient' do
     let(:auth_client) { clients.get_authorization_client }
+
+    before do
+      if oss?
+        skip 'Authorization/RBAC API not implemented in OSS Conductor (no users/roles/groups/' \
+             'applications/permissions resource at all; OSS explicitly ships with ' \
+             'ACCESS_MANAGEMENT/RBAC disabled)'
+      end
+    end
 
     describe 'token operations' do
       it 'gets user info from current token' do
@@ -410,6 +425,14 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
   describe 'IntegrationClient' do
     let(:integration_client) { clients.get_integration_client }
 
+    before do
+      if oss?
+        skip 'Integration Hub API not implemented in OSS Conductor (no IntegrationResource/DAO; ' \
+             "the OSS agentspan module's ProviderController only exposes /api/providers/status, " \
+             'a fixed-list LLM-provider health check, not an integration-def registry)'
+      end
+    end
+
     it 'lists available integrations' do
       # This just verifies the API call works (may return empty array)
       integrations = integration_client.get_integrations
@@ -429,6 +452,14 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
   describe 'PromptClient' do
     let(:prompt_client) { clients.get_prompt_client }
+
+    before do
+      if oss?
+        skip 'Prompt template management API not implemented in OSS Conductor (PromptTemplateRef ' \
+             'is only an inert, unresolved reference field on AGENT tasks; there is no ' \
+             'PromptResource/DAO backing a named template store)'
+      end
+    end
 
     it 'lists available prompts' do
       # This just verifies the API call works (may return empty array)

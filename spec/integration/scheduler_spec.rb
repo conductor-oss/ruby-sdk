@@ -56,6 +56,10 @@ RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     skip "Orkes free tier limit reached: #{error.message}"
   end
 
+  def oss?
+    ENV['CONDUCTOR_SERVER_TYPE'] == 'oss'
+  end
+
   # Helper to get attribute from schedule object or hash
   def get_schedule_attr(schedule, attr_name)
     value = if schedule.is_a?(Hash)
@@ -641,6 +645,11 @@ RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     let(:schedule_name) { "#{test_id}_tag_test" }
 
     before do
+      if oss?
+        skip 'Schedule tagging API not implemented in OSS Conductor (no /scheduler/schedules/{name}/tags ' \
+             'route; scheduler tags are an Orkes-only addition)'
+      end
+
       # Ensure the test workflow exists
       begin
         workflow_def = Conductor::Http::Models::WorkflowDef.new(

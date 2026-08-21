@@ -116,12 +116,11 @@ jobs:
           CONDUCTOR_AUTH_SECRET: ${{ secrets.CONDUCTOR_AUTH_SECRET }}
         run: |
           bundle exec rspec spec/integration/ --format documentation
-        continue-on-error: true
 
   # Integration tests (OSS): spins up Conductor OSS + Postgres via
   # scripts/docker-compose-oss.yaml and runs the integration spec suite against
   # it unauthenticated. The same stack can be run locally with
-  # scripts/run-integration-oss.sh. Unlike the dormant cloud `integration-test`
+  # scripts/run-integration-oss.sh. Unlike the cloud `integration-test`
   # job above, this needs no secrets, so it runs on every push/PR and is not
   # continue-on-error.
   integration-tests-oss:

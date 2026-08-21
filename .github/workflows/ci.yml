@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, develop, e2e-against-conductor-with-local-script]
+    branches: [main, develop, e2e-against-conductor-with-local-script] # TODO: Remove e2e-against-conductor-with-local-script branch after merging
   pull_request:
     branches: [main]
   workflow_dispatch:

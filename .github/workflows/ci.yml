@@ -111,8 +111,8 @@ jobs:
         if: env.CONDUCTOR_SERVER_URL != ''
         env:
           CONDUCTOR_INTEGRATION: 'true'
-          CONDUCTOR_SERVER_URL: ${{ secrets.CONDUCTOR_SERVER_URL }}
-          CONDUCTOR_AUTH_KEY: ${{ secrets.CONDUCTOR_AUTH_KEY }}
+          CONDUCTOR_SERVER_URL: ${{ vars.CONDUCTOR_SERVER_URL }}
+          CONDUCTOR_AUTH_KEY: ${{ vars.CONDUCTOR_AUTH_KEY }}
           CONDUCTOR_AUTH_SECRET: ${{ secrets.CONDUCTOR_AUTH_SECRET }}
         run: |
           bundle exec rspec spec/integration/ --format documentation

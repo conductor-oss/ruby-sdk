@@ -199,3 +199,9 @@ RSpec/FilePath:
 
 RSpec/VerifiedDoubles:
   Enabled: false
+
+# The agents Tools DSL has its own `describe :tool_name, 'text'`; spec support files use it
+RSpec/DescribeSymbol:
+  Exclude:
+    - 'spec/support/**/*'
+    - 'examples/**/*'

@@ -10,6 +10,7 @@ This is the official Ruby SDK for [Conductor OSS](https://github.com/conductor-o
 - **Worker Framework** - Multi-threaded task execution with events and metrics
 - **Full API Coverage** - 17 Resource APIs, 9 high-level clients
 - **LLM/AI Tasks** - Chat completion, embeddings, image/audio generation
+- **Agents** - `Conductor::Agents`: agent definitions serialized to the server's `agentConfig`, tool workers, SSE streaming (`lib/conductor/agents/`)
 
 ## Key Design Documents
 
@@ -18,6 +19,8 @@ This is the official Ruby SDK for [Conductor OSS](https://github.com/conductor-o
 | [DESIGN.md](DESIGN.md) | High-level architecture and design principles |
 | [docs/design/WORKER_DESIGN.md](docs/design/WORKER_DESIGN.md) | Worker infrastructure design (polling, events, concurrency) |
 | [docs/design/WORKFLOW_DSL.md](docs/design/WORKFLOW_DSL.md) | Workflow DSL design and API reference |
+| [docs/design/AGENTS_IMPLEMENTATION_PLAN.md](docs/design/AGENTS_IMPLEMENTATION_PLAN.md) | Agents: verified wire contract, decisions, work breakdown |
+| [docs/agents/README.md](docs/agents/README.md) | Agents user guide (tools, streaming/approval, teams, secrets, runtime) |
 | [README.md](README.md) | User-facing documentation with examples |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Development workflow and guidelines |
 
@@ -424,6 +427,27 @@ lib/conductor/
     ├── task_type.rb              # Task type constants
     ├── timeout_policy.rb
     └── workflow_executor.rb
+lib/conductor/agents.rb               # require 'conductor/agents' entry point + default runtime
+lib/conductor/agents/
+├── agent.rb                      # Agent definition + sugar (add_tool, hands_off_to, on_approval, >>)
+├── tool_def.rb                   # ToolDef, ToolType, server-side tool factories
+├── tools.rb                      # `tool def` DSL, describe, requires_approval, registries
+├── tools/schema_builder.rb       # keyword defaults -> JSON schema (AST)
+├── tools/secret_scanner.rb       # secret('X') literals -> credentials
+├── tools/ruby_llm_adapter.rb     # RubyLLM::Tool -> ToolDef
+├── guardrail.rb, termination.rb, handoff.rb, callback_handler.rb, memory.rb, prompt_template.rb
+├── config_serializer.rb          # Agent tree -> agentConfig (Python-identical)
+└── runtime/
+    ├── agent_runtime.rb          # call_sync / call_async / deploy / serve
+    ├── sse_client.rb             # GET /agent/stream SSE with reconnect
+    ├── status_poller.rb          # polling fallback
+    ├── execution.rb              # Execution, ToolCall, TokenUsage, FinishReason
+    ├── approval_request.rb       # waiting -> approve / reject
+    ├── tool_registry.rb          # ToolDef -> Worker with Python TaskDef defaults
+    ├── dispatch.rb               # task input -> kwargs -> result
+    ├── system_workers.rb         # termination / guardrail / callback / handoff bodies
+    ├── secrets.rb                # secret(), secrets_env()
+    └── agent_config.rb           # CONDUCTOR_AGENT_* settings
 ```
 
 ---
@@ -530,7 +554,11 @@ spec/
 │   │   └── llm_tasks_spec.rb             # LLM helper tests
 │   ├── client/
 │   ├── http/
-│   └── worker/
+│   ├── worker/
+│   └── agents/                            # Agents unit + contract tests (no server)
+│       └── contract_spec.rb               # 19 golden configs must equal python-sdk + validate against agent-schema.json
+├── fixtures/agents/                       # vendored agent-schema.json and golden configs
+├── agents/                                # Replay tests against WireMock (conductor-mocks recordings)
 └── integration/                           # Requires live server
 ```
 
@@ -551,6 +579,16 @@ bundle exec rspec --format documentation
 
 # Integration tests (requires Conductor server)
 CONDUCTOR_SERVER_URL=http://localhost:8080/api bundle exec rspec spec/integration/
+
+# Agents replay tests (WireMock serving conductor-mocks/mocks/agent/tool_happy_path on :8080)
+CONDUCTOR_AGENTS_REPLAY_URL=http://localhost:8080 bundle exec rspec spec/agents
+```
+
+No Ruby installed? The suite runs in the official image:
+
+```bash
+docker run --rm -v "$PWD":/app:z -w /app -v ruby-sdk-bundle:/usr/local/bundle:z ruby:3.3 \
+  bash -lc "bundle install --quiet && bundle exec rspec spec/conductor/ && bundle exec rubocop"
 ```
 
 ---
@@ -583,6 +621,13 @@ CONDUCTOR_SERVER_URL=http://localhost:8080/api bundle exec rspec spec/integratio
 4. Add tests in `spec/conductor/worker/`
 5. Run linter: `bundle exec rubocop -a`
 6. Run tests: `bundle exec rspec spec/conductor/`
+
+### Changing the agents wire format
+
+1. The Python SDK (`python-sdk/src/conductor/ai/agents/config_serializer.py`) is the parity source; the server (`conductor/agentspan`) is the contract
+2. Edit `lib/conductor/agents/config_serializer.rb`, then `bundle exec rspec spec/conductor/agents/contract_spec.rb`
+3. New wire fields need a golden fixture: add the agent to `examples/agents/golden_agents.rb`, generate the Python side with `python-sdk/examples/agents/dump_agent_configs.py`, vendor it into `spec/fixtures/agents/configs/`
+4. Runtime behaviour is verified by replay (`spec/agents`); record new scenarios in `conductor-oss/conductor-mocks`
 
 ### Adding Event Listeners / Interceptors
 

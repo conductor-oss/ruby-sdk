@@ -1,6 +1,21 @@
 # Ruby Agents Parity: Implementation Plan
 
-Status: proposed, 2026-09-08. Owner: Ruby SDK.
+Status: implemented on `feature/conductor_agents`, 2026-09-08. Owner: Ruby SDK.
+
+## Status
+
+| Slice | State | Notes |
+|---|---|---|
+| Phase 0 (toolchain, token cache, runtimeMetadata, transport) | done | plus `update-v2` in the runner and `lease_extend_enabled` (2.18) |
+| Phase 1 (definition layer, serializer, contract tests) | done | 19/19 goldens identical to Python, schema-valid |
+| Phase 2 (runtime, SSE, dispatch, secrets, system workers) | done | Net::HTTP SSE; polling fallback over `/agent/{id}/status` |
+| Phase 3.1 (WireMock replay of `tool_happy_path`) | done | zero unmatched requests; CI job `agents-replay` |
+| Phase 3.2 (record approval / secrets / team scenarios) | open | needs a server with AI enabled and provider keys |
+| Phase 3.3 (mockLLM functional suite) | open | blocked on the server-side `MockLLM` provider |
+| Phase 4 (examples, docs, changelog) | done | Confluence page refresh left to the owner (see 4.1) |
+
+Decisions taken during implementation that extend section 2: 2.18 (update-v2), 2.19 (swarm
+hoisting for `hands_off_to`), 2.20 (run domain applies to every worker).
 
 Source of truth for *what* we build is the Confluence page
 [Ruby Agents Parity Plan](https://orkes.atlassian.net/wiki/spaces/ENG/pages/53739522/Ruby+Agents+Parity+Plan)
@@ -276,6 +291,30 @@ one release.
 Ruby is not installed on this machine (`ruby: command not found`; no rbenv/rvm/mise). Docker and
 podman are. Either install Ruby 3.3 or run the suite in `ruby:3.3-alpine` (the repo's
 `Dockerfile` base). This is the first checklist item in Phase 0.
+
+### 2.18 Task result updates go to update-v2 (added during implementation)
+
+The recorded scenario shows the tool result posted to `POST /api/tasks/update-v2` with
+`extendLease: false`; the Ruby runner posted to `POST /api/tasks`. The Python runner uses
+update-v2 by default and falls back to `/tasks` once on 404/405. **Decision**: same in
+`TaskRunner#send_task_update`; `Worker` gains `lease_extend_enabled` (tool workers set it, like
+Python) so lease extension can follow later.
+
+### 2.19 `hands_off_to` on a member makes the team a swarm (added during implementation)
+
+The design puts handoffs on the member (`triage.hands_off_to filer`), but the server reads
+`handoffs` on the coordinator and only acts on them under `strategy: swarm`; a member's
+handoffs under the default `handoff` strategy would be ignored. **Decision D10**: when members
+declare handoffs and the team has no explicit strategy, `ConfigSerializer` emits
+`strategy: swarm` and hoists the members' handoffs onto the team. An explicit strategy is
+never overridden. Python-style teams (handoffs on the parent, `strategy: :swarm`) serialize
+unchanged; goldens 13 and 17 prove it.
+
+### 2.20 The run domain applies to every worker (added during implementation)
+
+When a start request carries `runId`, the server maps every name in `requiredWorkers` to that
+task domain, not just stateful tools. **Decision**: `ToolRegistry` gives all workers of a
+stateful run the run domain; the plan's per-tool rule was wrong.
 
 ---
 

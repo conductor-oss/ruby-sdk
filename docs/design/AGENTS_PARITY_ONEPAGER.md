@@ -268,6 +268,13 @@ classDiagram
   OrkesClients ..> AgentClient : creates
 ```
 
+> Implementation notes (see `AGENTS_IMPLEMENTATION_PLAN.md`, section 2): `McpDiscovery` was not
+> built because the server discovers MCP tools itself at compile time; `ApprovalRequest` wraps the
+> server's `waiting` event (one HUMAN task gates a whole turn of tool calls, so it carries
+> `tool_calls`); a team parent without a model inherits the first member's model; members'
+> `hands_off_to` make a strategy-less team a swarm; the polling fallback uses
+> `GET /agent/{id}/status`.
+
 ## Examples
 
 ### 1. Tools

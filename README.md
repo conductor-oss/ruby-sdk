@@ -11,6 +11,7 @@ Official Ruby SDK for [Conductor OSS](https://github.com/conductor-oss/conductor
 - **Ruby-Idiomatic Workflow DSL** - Clean block-based syntax with 25+ task types
 - **Worker Framework** - Multi-threaded task execution with class-based and block-based workers
 - **LLM/AI Tasks** - Chat completion, embeddings, RAG, image/audio generation
+- **Agents** - Define agents with Ruby methods as tools, run them on the server, stream the answer (`require 'conductor/agents'`)
 - **Orkes Cloud Support** - Authentication, secrets, integrations, prompts
 - **Comprehensive Testing** - 400+ unit tests, 110 integration tests
 
@@ -324,6 +325,27 @@ workflow = Conductor.workflow :ai_assistant, executor: executor do
 end
 ```
 
+### Agents
+
+```ruby
+require 'conductor/agents'
+include Conductor::Agents
+
+tool def get_weather(city: String, units: 'metric')
+  { temp_c: 21.0, summary: "Sunny in #{city}" }
+end
+
+agent = Agent.new(name: 'weather', model: 'openai/gpt-4o', instructions: 'Answer weather questions.')
+agent.add_tool :get_weather
+
+puts agent.call_sync('Weather in Lisbon?')
+```
+
+`tool def` turns a method into a tool (types from the keyword defaults, secrets from
+`secret('...')` literals). The server runs the LLM loop; this process runs the tools. Teams,
+approval (`requires_approval` + `on_approval`), streaming (`call_async`), guardrails and
+termination are covered in [docs/agents/](docs/agents/README.md).
+
 ### Output References
 
 The DSL uses a clean syntax for referencing outputs:
@@ -355,6 +377,7 @@ The `examples/` directory contains comprehensive examples:
 | [`dynamic_workflow.rb`](examples/dynamic_workflow.rb) | Create and execute workflows at runtime |
 | [`workflow_ops.rb`](examples/workflow_ops.rb) | Lifecycle operations: pause, resume, restart, retry |
 | [`agentic_workflows/`](examples/agentic_workflows/) | LLM chat and AI workflow examples |
+| [`agents/`](examples/agents/) | Agents: tools (`weather.rb`), approval + streaming (`support_approval.rb`), team + secret (`bug_desk.rb`) |
 
 Run examples:
 

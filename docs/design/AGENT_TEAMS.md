@@ -66,3 +66,10 @@ Same Python objects, same `agentConfig`. Sugar only.
 | `a.stop_when 'X'` / `a.stop_after messages: n` | `termination: TextMention \| MaxMessage` |
 | `secret('X')` | at `tool def`: AST scan adds `X` to `ToolDef#credentials` → `TaskDef.runtimeMetadata` / `tool.config.credentials`. At run: reads `Task.runtimeMetadata['X']` (fiber-local). Same wire contract as Python `credentials=[...]` + `get_secret` |
 | `Agent.new(name: 'bug_desk')` + `add_agent` | `strategy: :handoff` default |
+
+## Implementation note
+
+The server acts on `handoffs` only on the coordinator and only under `strategy: swarm`. So
+`triage.hands_off_to filer` on a member makes a team with no explicit strategy serialize as a
+`swarm` with the members' handoffs hoisted onto it (decision 2.19 in
+`AGENTS_IMPLEMENTATION_PLAN.md`). An explicit `team.strategy = ...` is never overridden.

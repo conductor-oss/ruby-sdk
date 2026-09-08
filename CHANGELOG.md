@@ -59,6 +59,26 @@ end
 
 ### Added
 
+- **Agents** (`require 'conductor/agents'`) - Ruby port of the Python SDK's agents package, same `agentConfig` on the wire -- [guide](docs/agents/README.md)
+  - `tool def` DSL: types from keyword defaults, secrets from `secret('...')` literals, `describe`, `requires_approval`, module scoping, RubyLLM::Tool adapter
+  - `Agent` with `add_tool`, `add_agent`, `hands_off_to`, `redact`, `stop_when`, `stop_after`, `on_approval`, `>>`; guardrails, termination conditions, handoffs, callbacks, memory, prompt templates
+  - `ConfigSerializer` verified against the Python SDK's 19 golden configs and `agent-schema.json`
+  - `AgentRuntime`: `call_sync`, `call_async` (SSE streaming with reconnect, polling fallback), `deploy`, `serve`; `Execution`, `ApprovalRequest`
+  - Tool workers registered with Python's task definition defaults; `<agent>_termination`, custom guardrail and callback workers
+  - `AgentResourceApi` / `AgentClient` for `/api/agent/*`, `OrkesClients#get_agent_client`
+  - `Task#runtime_metadata` (wire-only secret values), `TaskDef#runtime_metadata` (declared secret names), `TaskDef#enforce_schema`
+  - `TaskResourceApi#update_task_v2`; `Worker` option `lease_extend_enabled`
+  - Replay tests against `conductor-oss/conductor-mocks` recordings (`spec/agents`, CI job `agents-replay`)
+
+### Changed
+
+- `Configuration` caches the auth token per instance (two configurations no longer share a token); the class-level `Configuration.auth_token` accessors remain as a deprecated shim
+- `TaskRunner` posts task results to `POST /tasks/update-v2` and falls back to `POST /tasks` once when the server does not serve it (Python SDK parity)
+
+### Removed
+
+- Unused `vcr` development dependency (`json_schemer` added for agent contract tests)
+
 - **Core Infrastructure**
   - Configuration with environment variable support
   - Authentication (token management, TTL refresh, exponential backoff)

@@ -242,7 +242,26 @@ lib/conductor/
     ├── task_type.rb              # Task type constants
     ├── timeout_policy.rb
     └── workflow_executor.rb
+lib/conductor/agents.rb               # require 'conductor/agents'
+lib/conductor/agents/                 # Agents (see docs/agents/README.md)
+├── agent.rb, tool_def.rb, tools.rb   # definition layer + `tool def` DSL
+├── guardrail.rb, termination.rb, handoff.rb, callback_handler.rb, memory.rb, prompt_template.rb
+├── config_serializer.rb              # -> agentConfig, identical to the Python SDK
+└── runtime/                          # AgentRuntime, SseClient, Execution, ApprovalRequest, ToolRegistry, Dispatch, Secrets
 ```
+
+## Agents
+
+`Conductor::Agents` ports the Python SDK's `conductor.ai.agents` package. An `Agent` tree is
+serialized by `ConfigSerializer` to the same `agentConfig` JSON Python sends; the server compiles
+it into a workflow and runs the LLM loop. `AgentRuntime` starts the execution
+(`POST /api/agent/start`), registers a Conductor worker for every task the server lists in
+`requiredWorkers` (the user's `tool def` tools plus `<agent>_termination`, custom guardrails and
+callbacks), and follows the run over SSE (`GET /api/agent/stream/{id}`, polling fallback).
+Secrets travel as `TaskDef.runtimeMetadata` names and come back as `Task.runtimeMetadata`
+values, read inside tools with `secret('NAME')`. The transport for `/api/agent/*` is
+`AgentResourceApi` / `AgentClient` like every other resource. Decisions and the verified wire
+contract are in `docs/design/AGENTS_IMPLEMENTATION_PLAN.md`.
 
 ## Dependencies
 

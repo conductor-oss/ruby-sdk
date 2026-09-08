@@ -25,6 +25,15 @@ require_relative 'agents/memory'
 require_relative 'agents/prompt_template'
 require_relative 'agents/agent'
 require_relative 'agents/config_serializer'
+require_relative 'agents/runtime/agent_config'
+require_relative 'agents/runtime/dispatch'
+require_relative 'agents/runtime/system_workers'
+require_relative 'agents/runtime/tool_registry'
+require_relative 'agents/runtime/execution'
+require_relative 'agents/runtime/approval_request'
+require_relative 'agents/runtime/sse_client'
+require_relative 'agents/runtime/status_poller'
+require_relative 'agents/runtime/agent_runtime'
 
 module Conductor
   # Ruby port of the Python SDK's conductor.ai.agents package
@@ -36,6 +45,28 @@ module Conductor
       # Tools and secrets are usable at the module level too (Conductor::Agents.tool ...)
       include Tools
       include Secrets
+
+      # The default runtime used by Agent#call_sync / #call_async (built from the environment)
+      # @return [AgentRuntime]
+      def runtime
+        @runtime ||= AgentRuntime.new
+      end
+
+      attr_writer :runtime
+
+      # Replace the default runtime
+      #   Conductor::Agents.configure(configuration: Conductor::Configuration.new(server_api_url: '...'))
+      # @return [AgentRuntime]
+      def configure(configuration: nil, agent_config: nil, logger: nil)
+        @runtime&.shutdown
+        @runtime = AgentRuntime.new(configuration: configuration, agent_config: agent_config, logger: logger)
+      end
+
+      # Stop the default runtime's workers and streams
+      def shutdown
+        @runtime&.shutdown
+        @runtime = nil
+      end
     end
   end
 end

@@ -45,6 +45,11 @@ cd "${REPO_ROOT}"
 compose() { docker compose -f "${COMPOSE_FILE}" "$@"; }
 
 cleanup() {
+  local status=$?
+  if [[ "${status}" -ne 0 ]]; then
+    echo "Dumping conductor-server logs (exit ${status})..." >&2
+    compose logs conductor-server || true
+  fi
   if [[ "${KEEP_UP}" == "1" ]]; then
     echo "--keep-up set: leaving the OSS stack running. Tear down with:"
     echo "  docker compose -f ${COMPOSE_FILE} down -v"
@@ -55,7 +60,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "Starting Conductor OSS stack (conductoross/conductor:${OSS_CONDUCTOR_VERSION})..."
+echo "Using conductoross/conductor:${OSS_CONDUCTOR_VERSION}"
+
+# `docker compose up` only pulls an image when it is missing locally, so a
+# previously-cached `latest` (or any other mutable tag) would silently be
+# reused instead of getting the current version. Pull unconditionally so the
+# stack always reflects the tag we just printed.
+echo "Pulling conductoross/conductor:${OSS_CONDUCTOR_VERSION} to ensure it's current..."
+compose pull conductor-server
+
+echo "Starting Conductor OSS stack..."
 compose up -d
 
 echo "Waiting for Conductor to be healthy..."
@@ -64,7 +78,6 @@ deadline=$(( SECONDS + HEALTH_TIMEOUT ))
 until curl -sf http://localhost:8080/health >/dev/null 2>&1; do
   if (( SECONDS >= deadline )); then
     echo "Error: Conductor did not become healthy within ${HEALTH_TIMEOUT}s." >&2
-    compose logs conductor-server || true
     exit 1
   fi
   sleep 5
@@ -74,5 +87,12 @@ echo "Conductor is up."
 export CONDUCTOR_SERVER_URL="http://localhost:8080/api"
 export CONDUCTOR_SERVER_TYPE="oss"
 export CONDUCTOR_INTEGRATION="true"
+
+# Plain OSS Conductor has no authentication layer and no /token endpoint. A
+# shell that still has these exported for the Orkes suite would send the whole
+# run through an auth flow the local server cannot serve --
+# IntegrationHelper.configuration builds AuthenticationSettings from these two
+# env vars whenever both are present.
+unset CONDUCTOR_AUTH_KEY CONDUCTOR_AUTH_SECRET
 
 bundle exec rspec spec/integration/ --format documentation ${extra[@]+"${extra[@]}"}

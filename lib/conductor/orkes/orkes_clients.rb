@@ -8,7 +8,7 @@ module Conductor
     # Usage:
     #   config = Conductor::Configuration.new
     #   config.server_url = 'https://developer.orkescloud.com/api'
-    #   config.authentication_settings = Conductor::Configuration::AuthenticationSettings.new(
+    #   config.authentication_settings = Conductor::AuthenticationSettings.new(
     #     key_id: 'your_key', key_secret: 'your_secret'
     #   )
     #   clients = Conductor::Orkes::OrkesClients.new(config)

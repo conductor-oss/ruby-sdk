@@ -48,7 +48,7 @@ RSpec.describe 'Prompt API Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
   # looks up a named template by content. See orkes_spec.rb's PromptClient tests
   # for the equivalent OSS-aware gating.
   before do
-    skip 'Prompt template management API not implemented in OSS Conductor' if ENV['CONDUCTOR_SERVER_TYPE'] == 'oss'
+    skip 'Prompt template management API not implemented in OSS Conductor' if IntegrationHelper.oss?
   end
 
   describe 'Prompt CRUD Operations' do

@@ -244,7 +244,7 @@ RSpec.describe 'Metadata API Integration', :integration do
     workflow_def.schema_version = 2
     workflow_def.timeout_seconds = 300
     workflow_def.timeout_policy = 'TIME_OUT_WF'
-    workflow_def.owner_email = 'test@example.com'
+    workflow_def.owner_email = 'test@conductoross.io'
     workflow_def
   end
 end

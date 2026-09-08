@@ -36,10 +36,6 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     skip "Orkes free tier limit reached: #{error.message}"
   end
 
-  def oss?
-    ENV['CONDUCTOR_SERVER_TYPE'] == 'oss'
-  end
-
   describe 'OrkesClients factory' do
     it 'creates all client types successfully' do
       expect(clients.get_workflow_client).to be_a(Conductor::Client::WorkflowClient)
@@ -79,7 +75,7 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     end
 
     it 'performs CRUD operations on secrets' do
-      if oss?
+      if IntegrationHelper.oss?
         # Verify reads work against the pre-seeded env-backed secret, and that
         # writes fail with a real 501 (read-only backend) rather than silently
         # succeeding or failing for some other reason.
@@ -122,7 +118,7 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     end
 
     it 'handles secret tags' do
-      if oss?
+      if IntegrationHelper.oss?
         skip 'Secret tags require a writable secrets backend; OSS only ships read-only ' \
              'SecretsDAO implementations (env/no-op)'
       end
@@ -158,7 +154,7 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     let(:schema_client) { clients.get_schema_client }
 
     before do
-      if oss?
+      if IntegrationHelper.oss?
         skip 'Schema registry API not implemented in OSS Conductor (SchemaDef is only an inline ' \
              'WorkflowDef/TaskDef field; there is no standalone SchemaResource/DAO)'
       end
@@ -222,7 +218,7 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     let(:auth_client) { clients.get_authorization_client }
 
     before do
-      if oss?
+      if IntegrationHelper.oss?
         skip 'Authorization/RBAC API not implemented in OSS Conductor (no users/roles/groups/' \
              'applications/permissions resource at all; OSS explicitly ships with ' \
              'ACCESS_MANAGEMENT/RBAC disabled)'
@@ -426,7 +422,7 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     let(:integration_client) { clients.get_integration_client }
 
     before do
-      if oss?
+      if IntegrationHelper.oss?
         skip 'Integration Hub API not implemented in OSS Conductor (no IntegrationResource/DAO; ' \
              "the OSS agentspan module's ProviderController only exposes /api/providers/status, " \
              'a fixed-list LLM-provider health check, not an integration-def registry)'
@@ -454,7 +450,7 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     let(:prompt_client) { clients.get_prompt_client }
 
     before do
-      if oss?
+      if IntegrationHelper.oss?
         skip 'Prompt template management API not implemented in OSS Conductor (PromptTemplateRef ' \
              'is only an inert, unresolved reference field on AGENT tasks; there is no ' \
              'PromptResource/DAO backing a named template store)'

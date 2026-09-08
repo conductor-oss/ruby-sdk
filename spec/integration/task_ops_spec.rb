@@ -425,6 +425,65 @@ RSpec.describe 'Task Operations Integration', skip: !ENV['CONDUCTOR_INTEGRATION'
   end
 
   describe 'Task Search' do
+    # Self-contained setup: specs run in random order (spec_helper sets
+    # config.order = :random), so this group cannot rely on an earlier group
+    # having produced a task of this type for the query-filter example below.
+    before do
+      begin
+        task_def = Conductor::Http::Models::TaskDef.new(
+          name: "#{test_id}_simple_task",
+          description: 'Test task',
+          retry_count: 0,
+          timeout_seconds: 60
+        )
+        metadata_client.register_task_def(task_def)
+      rescue Conductor::ApiError
+        # Task may exist
+      end
+
+      begin
+        workflow_def = Conductor::Http::Models::WorkflowDef.new(
+          name: "#{test_id}_search_workflow",
+          version: 1,
+          description: 'Workflow with SIMPLE task, for task search',
+          tasks: [
+            Conductor::Http::Models::WorkflowTask.new(
+              name: "#{test_id}_simple_task",
+              task_reference_name: 'simple_task_ref',
+              type: 'SIMPLE',
+              input_parameters: { 'input_data' => '${workflow.input.data}' }
+            )
+          ],
+          schema_version: 2
+        )
+        metadata_client.register_workflow_def(workflow_def, overwrite: true)
+      rescue Conductor::ApiError
+        # Workflow may exist
+      end
+
+      request = Conductor::Http::Models::StartWorkflowRequest.new(
+        name: "#{test_id}_search_workflow",
+        version: 1,
+        input: { 'data' => 'search_test' }
+      )
+      @workflow_id = workflow_client.start(request)
+
+      # Poll the task so it leaves SCHEDULED. Task indexing is driven by task
+      # updates on both server families, so a task left sitting in the queue is
+      # not reliably searchable.
+      begin
+        task_api.poll("#{test_id}_simple_task", worker_id: 'ruby_search_worker')
+      rescue Conductor::ApiError
+        # Non-fatal: the query-filter example asserts on the search result itself
+      end
+    end
+
+    after do
+      workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
+    rescue StandardError
+      # Ignore
+    end
+
     it 'search - searches for tasks' do
       results = task_api.search(
         start: 0,
@@ -449,13 +508,23 @@ RSpec.describe 'Task Operations Integration', skip: !ENV['CONDUCTOR_INTEGRATION'
       # colon syntax) so this also works against OSS Conductor's default
       # Postgres-backed indexing, which only understands `=`/`>`/`<`/`IN`
       # conditions, not full Lucene grammar.
-      results = task_api.search(
-        start: 0,
-        size: 5,
-        query: "taskType = \"#{test_id}_simple_task\""
-      )
+      #
+      # Assert on the rows, not just on a non-nil response: both server families
+      # answer 200-with-zero-rows for a query they parse but cannot match, so a
+      # syntax regression is invisible to a `not_to be_nil` check.
+      task_type = "#{test_id}_simple_task"
+      query = "taskType = \"#{task_type}\""
 
-      expect(results).not_to be_nil
+      rows = IntegrationHelper.wait_for_search_rows do
+        task_api.search(start: 0, size: 5, query: query)
+      end
+
+      expect(rows).not_to be_empty, "query #{query.inspect} matched nothing; a task of this " \
+                                    'type was created in the before hook, so this is a ' \
+                                    'query-syntax or indexing failure rather than an empty ' \
+                                    'environment'
+      expect(rows.map { |row| IntegrationHelper.search_row_field(row, :taskType) })
+        .to all(eq(task_type))
     rescue Conductor::ApiError => e
       skip_if_limit_reached(e)
     end

@@ -36,6 +36,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Task classes: `SimpleTask`, `SwitchTask`, `ForkTask`, `JoinTask`, `DoWhileTask`, `HttpTask`, `SubWorkflowTask`, `WaitTask`, `TerminateTask`, `SetVariableTask`, `DynamicForkTask`, `JavascriptTask`, `JsonJqTask`, `EventTask`, `HttpPollTask`, `DynamicTask`, `HumanTask`, `StartWorkflowTask`, `KafkaPublishTask`, `WaitForWebhookTask`
   - LLM task classes: `LlmChatCompleteTask`, `LlmTextCompleteTask`, `LlmGenerateEmbeddingsTask`, `LlmIndexTextTask`, `LlmIndexDocumentTask`, `LlmSearchIndexTask`, `LlmQueryEmbeddingsTask`, `LlmStoreEmbeddingsTask`, `LlmSearchEmbeddingsTask`, `GenerateImageTask`, `GenerateAudioTask`, `GetDocumentTask`, `ListMcpToolsTask`, `CallMcpToolTask`
 
+### Fixed
+
+- `SchedulerResourceApi#pause_schedule` / `#resume_schedule` now work against both Conductor server families. The client sends `PUT` first and falls back to `GET` on a `405` -- and only on a `405`. OSS Conductor maps these two per-schedule routes `@PutMapping`-only, so the previous `GET`-only calls failed there outright; Orkes Conductor accepts both verbs as of the dual `@RequestMapping(method = {GET, PUT})` added in 2026-07, and is `GET`-only in deployments older than that. `pause_all_schedules` / `resume_all_schedules` remain `GET`, which is how both families map those admin endpoints. Matches the python-sdk, go-sdk, javascript-sdk, csharp-sdk and rust-sdk clients; `spec/conductor/http/api/scheduler_resource_api_spec.rb` pins the whole contract
+- `Conductor::AuthenticationSettings` is no longer referenced as `Conductor::Configuration::AuthenticationSettings`, which raised `NameError: uninitialized constant`. The class has always been defined directly under `Conductor`. Fixed in `RactorTaskRunner`'s in-Ractor configuration rebuild (where it was a live failure) and in the `Conductor` / `OrkesClients` doc comments (where it told users to write the broken form)
+
 ### Migration Guide
 
 **Before (old DSL):**

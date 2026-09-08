@@ -43,7 +43,7 @@ RSpec.describe 'Worker E2E Integration', :integration do
       wf_def.schema_version = 2
       wf_def.timeout_seconds = 300
       wf_def.timeout_policy = 'TIME_OUT_WF'
-      wf_def.owner_email = 'test@example.com'
+      wf_def.owner_email = 'test@conductoross.io'
       metadata_client.register_workflow_def(wf_def)
     end
 
@@ -164,7 +164,7 @@ RSpec.describe 'Worker E2E Integration', :integration do
       wf_def.schema_version = 2
       wf_def.timeout_seconds = 300
       wf_def.timeout_policy = 'TIME_OUT_WF'
-      wf_def.owner_email = 'test@example.com'
+      wf_def.owner_email = 'test@conductoross.io'
       metadata_client.register_workflow_def(wf_def)
 
       handler = Conductor::Worker::TaskHandler.new(
@@ -224,7 +224,7 @@ RSpec.describe 'Worker E2E Integration', :integration do
       workflow = Conductor.workflow(dsl_wf_name, version: 1, description: 'DSL integration test',
                                                  executor: executor) do
         timeout 300
-        owner_email 'test@example.com'
+        owner_email 'test@conductoross.io'
 
         simple dsl_task_name, value: wf[:value]
       end

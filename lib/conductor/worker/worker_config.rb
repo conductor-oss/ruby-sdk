@@ -22,7 +22,8 @@ module Conductor
         strict_schema: { type: :boolean, default: false },
         paused: { type: :boolean, default: false },
         isolation: { type: :symbol, default: :thread },        # :thread or :ractor
-        executor: { type: :symbol, default: :thread_pool }     # :thread_pool or :fiber
+        executor: { type: :symbol, default: :thread_pool },    # :thread_pool or :fiber
+        lease_extend_enabled: { type: :boolean, default: false }
       }.freeze
 
       class << self

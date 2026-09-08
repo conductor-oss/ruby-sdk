@@ -61,6 +61,10 @@ module Conductor
         Client::SchemaClient.new(@api_client)
       end
 
+      def get_agent_client
+        Client::AgentClient.new(@api_client)
+      end
+
       def get_workflow_executor
         Workflow::WorkflowExecutor.new(@configuration)
       end

@@ -73,6 +73,21 @@ module Conductor
           )
         end
 
+        # Update task status using the v2 endpoint (POST /tasks/update-v2)
+        # Supports lease extension via TaskResult#extend_lease and returns the next
+        # task for the same worker when the server has one queued.
+        # @param [TaskResult] body Task result
+        # @return [Task, nil] Next task if the server returned one, nil on 204
+        def update_task_v2(body)
+          @api_client.call_api(
+            '/tasks/update-v2',
+            'POST',
+            body: body,
+            return_type: 'Task',
+            return_http_data_only: true
+          )
+        end
+
         # Get task details
         # @param [String] task_id Task ID
         # @return [Task] Task object

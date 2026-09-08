@@ -50,7 +50,8 @@ module Conductor
           first_start_time: 'Integer',
           loop_over_task: 'Boolean',
           task_definition: 'TaskDef',
-          queue_wait_time: 'Integer'
+          queue_wait_time: 'Integer',
+          runtime_metadata: 'Hash<String, String>'
         }.freeze
 
         ATTRIBUTE_MAP = {
@@ -96,7 +97,8 @@ module Conductor
           first_start_time: :firstStartTime,
           loop_over_task: :loopOverTask,
           task_definition: :taskDefinition,
-          queue_wait_time: :queueWaitTime
+          queue_wait_time: :queueWaitTime,
+          runtime_metadata: :runtimeMetadata
         }.freeze
 
         attr_accessor :task_type, :status, :input_data, :reference_task_name,
@@ -112,6 +114,11 @@ module Conductor
                       :iteration, :sub_workflow_id, :subworkflow_changed, :parent_task_id,
                       :first_start_time, :loop_over_task, :task_definition, :queue_wait_time
 
+        # Wire-only map of secret name => resolved value. The server fills it at poll
+        # time from TaskDef#runtime_metadata (names) and never persists it.
+        # @return [Hash<String, String>]
+        attr_accessor :runtime_metadata
+
         # Initialize a new Task
         # @param [Hash] attributes Model attributes in the form of hash
         def initialize(attributes = {})
@@ -125,6 +132,7 @@ module Conductor
           # Set default values for collections
           @input_data ||= {}
           @output_data ||= {}
+          @runtime_metadata ||= {}
         end
 
         # Check if task is in terminal state

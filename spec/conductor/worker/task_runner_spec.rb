@@ -37,6 +37,7 @@ RSpec.describe Conductor::Worker::TaskRunner do
     allow(Conductor::Client::TaskClient).to receive(:new).and_return(task_client)
     allow(task_client).to receive(:batch_poll_tasks).and_return([])
     allow(task_client).to receive(:update_task)
+    allow(task_client).to receive(:update_task_v2)
   end
 
   describe '#initialize' do
@@ -260,7 +261,7 @@ RSpec.describe Conductor::Worker::TaskRunner do
 
     before do
       allow(task_client).to receive(:batch_poll_tasks).and_return([task_data])
-      allow(task_client).to receive(:update_task).and_raise(StandardError.new('Update failed'))
+      allow(task_client).to receive(:update_task_v2).and_raise(StandardError.new('Update failed'))
 
       event_dispatcher.register(Conductor::Worker::Events::TaskUpdateFailure,
                                 ->(event) { received_events << [:update_failure, event] })
@@ -365,7 +366,7 @@ RSpec.describe Conductor::Worker::TaskRunner do
 
     before do
       allow(task_client).to receive(:batch_poll_tasks).and_return([task_data])
-      allow(task_client).to receive(:update_task).and_raise(StandardError.new('Update failed'))
+      allow(task_client).to receive(:update_task_v2).and_raise(StandardError.new('Update failed'))
 
       event_dispatcher.register(Conductor::Worker::Events::TaskUpdateFailure,
                                 ->(event) { received_events << [:update_failure, event] })

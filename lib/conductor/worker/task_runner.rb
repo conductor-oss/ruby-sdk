@@ -68,6 +68,9 @@ module Conductor
         @poll_count = Concurrent::AtomicFixnum.new(0)
         @shutdown = Concurrent::AtomicBoolean.new(false)
         @mutex = Mutex.new
+        # Prefer POST /tasks/update-v2 (lease extension, next-task return); fall back
+        # to POST /tasks once if the server does not serve it (404/405).
+        @use_update_v2 = Concurrent::AtomicBoolean.new(true)
       end
 
       # Main polling loop (runs until shutdown)
@@ -458,7 +461,7 @@ module Conductor
 
           start_time = Time.now
           begin
-            @task_client.update_task(task_result)
+            send_task_update(task_result)
             duration_ms = (Time.now - start_time) * 1000
 
             publish_task_update_completed(task_result, duration_ms)
@@ -473,6 +476,23 @@ module Conductor
               publish_task_update_failure(task_result, e, duration_ms)
             end
           end
+        end
+      end
+
+      # Send the task result to the server, preferring the v2 endpoint
+      # @param task_result [TaskResult]
+      def send_task_update(task_result)
+        return @task_client.update_task(task_result) unless @use_update_v2.true?
+
+        task_result.extend_lease = false if task_result.extend_lease.nil?
+        begin
+          @task_client.update_task_v2(task_result)
+        rescue ApiError => e
+          raise unless [404, 405].include?(e.status)
+
+          @logger.info('Server does not support /tasks/update-v2, falling back to /tasks')
+          @use_update_v2.make_false
+          @task_client.update_task(task_result)
         end
       end
 

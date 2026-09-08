@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'json'
+
 module Conductor
   # Base exception for all Conductor errors
   class ConductorError < StandardError; end
@@ -70,6 +72,40 @@ module Conductor
       msg
     end
   end
+
+  # Error returned by the agent REST API (/api/agent/*). The server answers 4xx with
+  # {"error": "<message>", "status": <code>}; +error+ carries that message when present.
+  class AgentApiError < ApiError
+    attr_reader :error
+
+    def initialize(message = nil, status: nil, code: nil, reason: nil, body: nil, headers: nil)
+      @error = parse_error(body)
+      super(message || @error, status: status, code: code, reason: reason, body: body, headers: headers)
+    end
+
+    # Build from a generic ApiError raised by the transport layer
+    # @param error [ApiError]
+    # @return [AgentApiError]
+    def self.from_api_error(error)
+      klass = error.not_found? ? AgentNotFoundError : AgentApiError
+      klass.new(error.message, status: error.status, code: error.code, reason: error.reason,
+                               body: error.body, headers: error.headers)
+    end
+
+    private
+
+    def parse_error(body)
+      return nil unless body.is_a?(String) && !body.empty?
+
+      data = JSON.parse(body)
+      data['error'] if data.is_a?(Hash)
+    rescue JSON::ParserError
+      nil
+    end
+  end
+
+  # Agent, execution, or deployment not found (404 from /api/agent/*)
+  class AgentNotFoundError < AgentApiError; end
 
   # Non-retryable worker error (terminal failure)
   class NonRetryableError < ConductorError; end

@@ -111,3 +111,37 @@ jobs:
         run: |
           bundle exec rspec spec/integration/ --format documentation
         continue-on-error: true
+
+  agents-replay:
+    name: Agents replay (WireMock)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Checkout recorded scenarios
+        uses: actions/checkout@v4
+        with:
+          repository: conductor-oss/conductor-mocks
+          path: conductor-mocks
+
+      - name: Start WireMock with agent/tool_happy_path
+        run: |
+          docker run -d --name wiremock -p 8080:8080 \
+            -v "$PWD/conductor-mocks/mocks/agent/tool_happy_path:/home/wiremock" \
+            wiremock/wiremock:3x
+          for i in $(seq 1 30); do
+            curl -fs http://localhost:8080/__admin/mappings > /dev/null && break
+            sleep 1
+          done
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Run agent replay specs
+        env:
+          CONDUCTOR_AGENTS_REPLAY_URL: http://localhost:8080
+        run: bundle exec rspec spec/agents --format documentation

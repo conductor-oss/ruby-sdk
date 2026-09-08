@@ -204,4 +204,5 @@ RSpec/VerifiedDoubles:
 RSpec/DescribeSymbol:
   Exclude:
     - 'spec/support/**/*'
+    - 'spec/agents/support/**/*'
     - 'examples/**/*'

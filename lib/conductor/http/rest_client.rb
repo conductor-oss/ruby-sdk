@@ -112,11 +112,20 @@ module Conductor
           end
 
           # Retry middleware (3 retries with exponential backoff)
+          #
+          # `exceptions` has to be spelled out: faraday-retry's
+          # DEFAULT_EXCEPTIONS covers timeouts but not Faraday::ConnectionFailed,
+          # which is what the net_http_persistent adapter raises for
+          # Errno::ECONNRESET/EPIPE -- a write to a pooled socket the peer closed
+          # first. net-http-persistent retries stale sockets itself, but only for
+          # idempotent requests, so POSTs surfaced these as hard ApiErrors while
+          # every GET was silently protected.
           conn.request :retry,
                        max: 3,
                        interval: 0.5,
                        backoff_factor: 2,
                        retry_statuses: [408, 429, 500, 502, 503, 504],
+                       exceptions: Faraday::Retry::Middleware::DEFAULT_EXCEPTIONS + [Faraday::ConnectionFailed],
                        methods: %i[get post put patch delete]
 
           # Connection settings

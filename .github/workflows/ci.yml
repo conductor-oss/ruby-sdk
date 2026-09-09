@@ -2,9 +2,24 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, e2e-against-conductor-with-local-script] # TODO: Remove e2e-against-conductor-with-local-script branch after merging
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      oss_conductor_version:
+        description: 'OSS Conductor image tag (falls back to E2E_TEST_OSS_CONDUCTOR_VERSION org var, then to a pinned default on fork PRs)'
+        required: false
+        type: string
+
+# Supersede an in-flight run when a new commit lands on the same ref, matching
+# python-sdk and go-sdk. The integration jobs make this more than a runner-time
+# saving: the cloud job mutates shared state on the sdkdev tenant (scheduler_spec
+# calls pause_all_schedules/resume_all_schedules, which are not scoped to a
+# test_id), so two runs of the same branch overlapping will fight each other.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -86,7 +101,7 @@ jobs:
   integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push'
     needs: [test, build]
     steps:
       - name: Checkout code
@@ -105,9 +120,82 @@ jobs:
         if: env.CONDUCTOR_SERVER_URL != ''
         env:
           CONDUCTOR_INTEGRATION: 'true'
-          CONDUCTOR_SERVER_URL: ${{ secrets.CONDUCTOR_SERVER_URL }}
-          CONDUCTOR_AUTH_KEY: ${{ secrets.CONDUCTOR_AUTH_KEY }}
+          CONDUCTOR_SERVER_URL: ${{ vars.CONDUCTOR_SERVER_URL }}
+          CONDUCTOR_AUTH_KEY: ${{ vars.CONDUCTOR_AUTH_KEY }}
           CONDUCTOR_AUTH_SECRET: ${{ secrets.CONDUCTOR_AUTH_SECRET }}
         run: |
           bundle exec rspec spec/integration/ --format documentation
-        continue-on-error: true
+
+  # Integration tests (OSS): spins up Conductor OSS + Postgres via
+  # scripts/docker-compose-oss.yaml and runs the integration spec suite against
+  # it unauthenticated. The same stack can be run locally with
+  # scripts/run-integration-oss.sh. Unlike the cloud `integration-test`
+  # job above, this needs no secrets, so it runs on every push/PR and is not
+  # continue-on-error.
+  integration-tests-oss:
+    name: Integration Tests (OSS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [test, build]
+    env:
+      CONDUCTOR_SERVER_URL: http://localhost:8080/api
+      CONDUCTOR_SERVER_TYPE: oss
+      CONDUCTOR_INTEGRATION: 'true'
+      # Used only when the org variable is unreachable because the run is a fork
+      # PR -- see the resolve step below.
+      FORK_PR_FALLBACK_VERSION: '3.32.3'
+    steps:
+      # OSS_CONDUCTOR_VERSION is resolved here rather than in the job `env` so
+      # that the two ways it can come back empty get different treatment:
+      #
+      #   - Fork PR: GitHub withholds org/repo variables from pull_request runs
+      #     on forks exactly as it withholds secrets, so vars.* is always "" for
+      #     an outside contributor (observed in csharp-sdk#178). This job needs
+      #     no secrets, only a tag, so pin one and keep running.
+      #   - Anything else: the org variable is genuinely missing or its
+      #     repository access policy no longer covers this repo. Fail loudly
+      #     rather than silently drifting onto the pin.
+      - name: Resolve OSS Conductor version
+        env:
+          REQUESTED_VERSION: ${{ inputs.oss_conductor_version || vars.E2E_TEST_OSS_CONDUCTOR_VERSION }}
+          IS_FORK_PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          if [ -n "$REQUESTED_VERSION" ]; then
+            resolved="$REQUESTED_VERSION"
+          elif [ "$IS_FORK_PR" = "true" ]; then
+            resolved="$FORK_PR_FALLBACK_VERSION"
+            echo "::notice::Fork PR: org variables are withheld, pinning conductoross/conductor:${resolved}"
+          else
+            echo "::error::No Conductor OSS image tag resolved. Set the E2E_TEST_OSS_CONDUCTOR_VERSION organization variable (and ensure its repository access policy includes this repo), or pass the oss_conductor_version input via workflow_dispatch."
+            exit 1
+          fi
+          echo "OSS_CONDUCTOR_VERSION=${resolved}" >> "$GITHUB_ENV"
+          echo "Using conductoross/conductor:${resolved}"
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+
+      - name: Install dependencies
+        run: bundle install
+
+      - name: Start Conductor OSS stack
+        run: docker compose -f scripts/docker-compose-oss.yaml up -d
+
+      - name: Wait for Conductor to be healthy
+        # Matches HEALTH_TIMEOUT in scripts/run-integration-oss.sh, and stays under the compose
+        # healthcheck's own ~200s budget (10s x 20 retries). `curl -sf` alone is the check:
+        # /health answers non-2xx while the server is still coming up.
+        run: timeout 180 bash -c 'until curl -sf http://localhost:8080/health; do sleep 5; done'
+
+      - name: Run integration tests (OSS)
+        run: bundle exec rspec spec/integration/ --format documentation
+
+      - name: Dump Conductor logs
+        if: failure()
+        run: docker compose -f scripts/docker-compose-oss.yaml logs conductor-server

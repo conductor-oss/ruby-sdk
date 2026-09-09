@@ -12,6 +12,12 @@ require 'logger'
 #   CONDUCTOR_AUTH_KEY   - Auth key (for Orkes, not needed for OSS)
 #   CONDUCTOR_AUTH_SECRET - Auth secret (for Orkes, not needed for OSS)
 #   CONDUCTOR_INTEGRATION - Set to 'true' to enable integration tests
+#   CONDUCTOR_SERVER_TYPE - Set to 'oss' when the target is open-source Conductor,
+#                           so specs covering Orkes-Enterprise-only APIs gate
+#                           themselves via IntegrationHelper.oss?. Unset (or any
+#                           other value) means an Orkes server. Exported by
+#                           scripts/run-integration-oss.sh and by the
+#                           integration-tests-oss CI job.
 #
 # Usage:
 #   CONDUCTOR_INTEGRATION=true bundle exec rspec spec/integration/
@@ -21,6 +27,51 @@ module IntegrationHelper
 
   # Unique prefix for test resources to avoid collisions
   TEST_PREFIX = "ruby_sdk_test_#{Time.now.to_i}_#{rand(10_000)}".freeze
+
+  # True when the suite is running against open-source Conductor rather than an
+  # Orkes server. Specs use this to skip APIs that OSS does not implement; see
+  # the individual call sites for the empirically-confirmed gap behind each skip.
+  def self.oss?
+    ENV['CONDUCTOR_SERVER_TYPE'] == 'oss'
+  end
+
+  # Normalize a SearchResult (model or raw Hash) into its result rows.
+  def self.search_rows(response)
+    return [] if response.nil?
+
+    rows = if response.is_a?(Hash)
+             response['results'] || response[:results]
+           elsif response.respond_to?(:results)
+             response.results
+           end
+    rows || []
+  end
+
+  # Read a camelCase field off a search result row. SearchResult#results is typed
+  # Array<Object>, so rows arrive as raw Hashes with wire-format keys.
+  def self.search_row_field(row, key)
+    row.is_a?(Hash) ? (row[key.to_s] || row[key.to_sym]) : row.public_send(key)
+  end
+
+  # Poll a search until it returns at least one row, then return the rows (or []
+  # if none appeared before the timeout).
+  #
+  # Search is index-backed and eventually consistent on both server families
+  # (Elasticsearch on Orkes, Postgres-backed indexing on OSS), so asserting on a
+  # single immediate query is inherently flaky. Callers assert on the return
+  # value, which is what makes a query-syntax regression visible: a query the
+  # server accepts but cannot match returns 200 with zero rows.
+  def self.wait_for_search_rows(timeout: 30, interval: 2)
+    deadline = Time.now + timeout
+    loop do
+      rows = search_rows(yield)
+      return rows if rows.any?
+      break if Time.now >= deadline
+
+      sleep(interval)
+    end
+    []
+  end
 
   def self.configuration
     @configuration ||= begin
@@ -32,7 +83,7 @@ module IntegrationHelper
       key_id = ENV.fetch('CONDUCTOR_AUTH_KEY', nil)
       key_secret = ENV.fetch('CONDUCTOR_AUTH_SECRET', nil)
       if key_id && key_secret
-        config.authentication_settings = Conductor::Configuration::AuthenticationSettings.new(
+        config.authentication_settings = Conductor::AuthenticationSettings.new(
           key_id: key_id,
           key_secret: key_secret
         )

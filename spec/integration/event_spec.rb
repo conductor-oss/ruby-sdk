@@ -374,6 +374,15 @@ RSpec.describe 'Event Handler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] 
     end
 
     it '8-9. put_queue_config and delete_queue_config - manages queue configuration' do
+      # OSS Conductor does not register a queue/config route at all, so every verb here
+      # answers a plain 404. Gate on the server type rather than adding 404 to the rescue
+      # below: a 404 from get_queue_config after a successful put is exactly the regression
+      # this example exists to catch on Orkes, and must keep failing there.
+      if IntegrationHelper.oss?
+        skip 'Queue configuration API not implemented in OSS Conductor (no queue/config route; ' \
+             'queue configuration is an Orkes-only addition)'
+      end
+
       queue_type = 'conductor'
       queue_name = "#{test_id}_queue"
 
@@ -394,7 +403,9 @@ RSpec.describe 'Event Handler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] 
           event_api.get_queue_config(queue_type, queue_name)
         end.to raise_error(Conductor::ApiError) { |e| expect(e.status).to eq(404) }
       rescue Conductor::ApiError => e
-        # Queue operations may not be available
+        # Orkes Cloud registers the route but deprecates it in favor of the integrations API
+        # (400/501/403 below). A bare 404 is deliberately NOT skipped here -- see the
+        # server-type gate at the top of this example.
         if e.status == 501 || e.message.include?('not supported')
           skip 'Queue configuration API not available in this environment'
         elsif e.status == 400 && e.message.include?('integrations API')

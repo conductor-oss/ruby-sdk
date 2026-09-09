@@ -479,9 +479,30 @@ RSpec.describe 'Task Operations Integration', skip: !ENV['CONDUCTOR_INTEGRATION'
     end
 
     after do
-      workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
-    rescue StandardError
-      # Ignore
+      begin
+        workflow_client.terminate_workflow(@workflow_id, reason: 'Test cleanup')
+      rescue StandardError
+        # Ignore
+      end
+
+      # `test_id` is a `let`, so each example registers its own uniquely-named
+      # pair of definitions. Unregister them or they accumulate on the shared
+      # cloud tenant, one pair per example per run, forever. Uses this group's
+      # own `metadata_client` rather than IntegrationHelper's, so cleanup is
+      # guaranteed to target the same server the `before` hook registered
+      # against (the two configurations resolve CONDUCTOR_SERVER_URL to
+      # different defaults when it is unset).
+      begin
+        metadata_client.unregister_workflow_def("#{test_id}_search_workflow", version: 1)
+      rescue StandardError
+        # Ignore
+      end
+
+      begin
+        metadata_client.unregister_task_def("#{test_id}_simple_task")
+      rescue StandardError
+        # Ignore
+      end
     end
 
     it 'search - searches for tasks' do

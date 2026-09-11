@@ -641,6 +641,11 @@ RSpec.describe 'Scheduler Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     let(:schedule_name) { "#{test_id}_tag_test" }
 
     before do
+      if IntegrationHelper.oss?
+        skip 'Schedule tagging API not implemented in OSS Conductor (no /scheduler/schedules/{name}/tags ' \
+             'route; scheduler tags are an Orkes-only addition)'
+      end
+
       # Ensure the test workflow exists
       begin
         workflow_def = Conductor::Http::Models::WorkflowDef.new(

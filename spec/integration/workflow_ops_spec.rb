@@ -381,21 +381,26 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
     end
 
     it 'search - searches workflows with query' do
-      # Search for our workflow by name
-      results = workflow_api.search(
-        start: 0,
-        size: 10,
-        query: "workflowType:#{test_id}_simple_workflow"
-      )
+      # Search for our workflow by name. Use the portable `field = "value"` query
+      # syntax (not Lucene `field:value` colon syntax) so this also works against
+      # OSS Conductor's default Postgres-backed indexing, which only understands
+      # `=`/`>`/`<`/`IN` conditions, not full Lucene grammar.
+      #
+      # Assert on the rows, not just on a non-nil response: both server families
+      # answer 200-with-zero-rows for a query they parse but cannot match, so a
+      # syntax regression is invisible to a `not_to be_nil` check.
+      workflow_type = "#{test_id}_simple_workflow"
+      query = "workflowType = \"#{workflow_type}\""
 
-      expect(results).not_to be_nil
-
-      # Check results structure
-      if results.is_a?(Hash)
-        expect(results).to have_key('results').or have_key('totalHits')
-      else
-        expect(results).to respond_to(:results).or respond_to(:total_hits)
+      rows = IntegrationHelper.wait_for_search_rows do
+        workflow_api.search(start: 0, size: 10, query: query)
       end
+
+      expect(rows).not_to be_empty, "query #{query.inspect} matched nothing; the workflow " \
+                                    'was started in the before hook, so this is a query-syntax ' \
+                                    'or indexing failure rather than an empty environment'
+      expect(rows.map { |row| IntegrationHelper.search_row_field(row, :workflowType) })
+        .to all(eq(workflow_type))
     rescue Conductor::ApiError => e
       skip_if_limit_reached(e)
     end
@@ -574,6 +579,12 @@ RSpec.describe 'Workflow Operations Integration', skip: !ENV['CONDUCTOR_INTEGRAT
     let(:workflow_id) { @workflow_id }
 
     before do
+      if IntegrationHelper.oss?
+        skip 'update_workflow_state not implemented in OSS Conductor (no POST /workflow/{id}/variables ' \
+             'route; this is an Orkes-only addition, distinct from the SET_VARIABLE task type which ' \
+             'OSS does support)'
+      end
+
       begin
         workflow_def = Conductor::Http::Models::WorkflowDef.new(
           name: "#{test_id}_wait_workflow",

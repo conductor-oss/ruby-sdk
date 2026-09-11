@@ -147,7 +147,7 @@ module Conductor
     # @example
     #   Conductor.configure do |config|
     #     config.server_url = 'http://localhost:7001/api'
-    #     config.authentication_settings = Conductor::Configuration::AuthenticationSettings.new(
+    #     config.authentication_settings = Conductor::AuthenticationSettings.new(
     #       key_id: 'my_key',
     #       key_secret: 'my_secret'
     #     )

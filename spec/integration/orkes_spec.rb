@@ -56,6 +56,16 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     let(:secret_key) { "#{test_id}_secret" }
     let(:secret_value) { "test_secret_value_#{SecureRandom.hex(8)}" }
 
+    # OSS Conductor registers a full secrets CRUD controller by default (the
+    # `agentspan` module's `conductor.integrations.ai.enabled=true` default),
+    # but only ships read-only SecretsDAO backends: writes (put/delete) return
+    # a real 501 "read-only backend" rather than succeeding. Reads work
+    # against an env-backed secret seeded via
+    # CONDUCTOR_SECRET_RUBY_SDK_INTEGRATION_TEST in scripts/docker-compose-oss.yaml
+    # -- keep these two constants in sync with that file.
+    OSS_SEEDED_SECRET_NAME = 'RUBY_SDK_INTEGRATION_TEST'
+    OSS_SEEDED_SECRET_VALUE = 'ruby-sdk-oss-secret-value'
+
     after do
       # Clean up: delete the test secret if it exists
 
@@ -65,32 +75,54 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     end
 
     it 'performs CRUD operations on secrets' do
-      # Create
-      secret_client.put_secret(secret_key, secret_value)
+      if IntegrationHelper.oss?
+        # Verify reads work against the pre-seeded env-backed secret, and that
+        # writes fail with a real 501 (read-only backend) rather than silently
+        # succeeding or failing for some other reason.
+        expect(secret_client.get_secret(OSS_SEEDED_SECRET_NAME)).to eq(OSS_SEEDED_SECRET_VALUE)
+        expect(secret_client.secret_exists(OSS_SEEDED_SECRET_NAME)).to be true
+        expect(secret_client.list_all_secret_names).to include(OSS_SEEDED_SECRET_NAME)
 
-      # Verify it exists
-      exists = secret_client.secret_exists(secret_key)
-      expect(exists).to be true
+        begin
+          secret_client.put_secret(secret_key, secret_value)
+          # A future OSS release might ship a writable backend; if so, clean up.
+          secret_client.delete_secret(secret_key)
+        rescue Conductor::ApiError => e
+          raise unless e.status == 501
+        end
+      else
+        # Create
+        secret_client.put_secret(secret_key, secret_value)
 
-      # List secrets should include our key
-      secrets = secret_client.list_all_secret_names
-      expect(secrets).to include(secret_key)
+        # Verify it exists
+        exists = secret_client.secret_exists(secret_key)
+        expect(exists).to be true
 
-      # Get secret (note: Orkes may return masked value or the actual value depending on permissions)
-      retrieved = secret_client.get_secret(secret_key)
-      expect(retrieved).not_to be_nil
+        # List secrets should include our key
+        secrets = secret_client.list_all_secret_names
+        expect(secrets).to include(secret_key)
 
-      # Delete
-      secret_client.delete_secret(secret_key)
+        # Get secret (note: Orkes may return masked value or the actual value depending on permissions)
+        retrieved = secret_client.get_secret(secret_key)
+        expect(retrieved).not_to be_nil
 
-      # Verify deleted
-      exists_after = secret_client.secret_exists(secret_key)
-      expect(exists_after).to be false
+        # Delete
+        secret_client.delete_secret(secret_key)
+
+        # Verify deleted
+        exists_after = secret_client.secret_exists(secret_key)
+        expect(exists_after).to be false
+      end
     rescue Conductor::ApiError => e
       skip_if_limit_reached(e)
     end
 
     it 'handles secret tags' do
+      if IntegrationHelper.oss?
+        skip 'Secret tags require a writable secrets backend; OSS only ships read-only ' \
+             'SecretsDAO implementations (env/no-op)'
+      end
+
       # Create secret first
       secret_client.put_secret(secret_key, secret_value)
 
@@ -120,6 +152,13 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
   describe 'SchemaClient' do
     let(:schema_client) { clients.get_schema_client }
+
+    before do
+      if IntegrationHelper.oss?
+        skip 'Schema registry API not implemented in OSS Conductor (SchemaDef is only an inline ' \
+             'WorkflowDef/TaskDef field; there is no standalone SchemaResource/DAO)'
+      end
+    end
 
     it 'lists all schemas' do
       # This should work even on free tier
@@ -177,6 +216,14 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
   describe 'AuthorizationClient' do
     let(:auth_client) { clients.get_authorization_client }
+
+    before do
+      if IntegrationHelper.oss?
+        skip 'Authorization/RBAC API not implemented in OSS Conductor (no users/roles/groups/' \
+             'applications/permissions resource at all; OSS explicitly ships with ' \
+             'ACCESS_MANAGEMENT/RBAC disabled)'
+      end
+    end
 
     describe 'token operations' do
       it 'gets user info from current token' do
@@ -353,15 +400,10 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
     it 'creates and registers a workflow using the DSL' do
       # Build workflow using DSL
-      workflow = Conductor::Workflow::ConductorWorkflow.new(executor: workflow_executor)
-      workflow.name = workflow_name
-      workflow.version = 1
-      workflow.description = 'Ruby SDK DSL test on Orkes'
-
-      # Add a simple set variable task
-      set_var = Conductor::Workflow::SetVariableTask.new('set_greeting')
-      set_var.input('greeting', '${workflow.input.name}')
-      workflow.add(set_var)
+      workflow = Conductor.workflow(workflow_name, version: 1, description: 'Ruby SDK DSL test on Orkes',
+                                                   executor: workflow_executor) do
+        set greeting: wf[:name]
+      end
 
       # Register the workflow
       workflow.register(overwrite: true)
@@ -378,6 +420,14 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
   describe 'IntegrationClient' do
     let(:integration_client) { clients.get_integration_client }
+
+    before do
+      if IntegrationHelper.oss?
+        skip 'Integration Hub API not implemented in OSS Conductor (no IntegrationResource/DAO; ' \
+             "the OSS agentspan module's ProviderController only exposes /api/providers/status, " \
+             'a fixed-list LLM-provider health check, not an integration-def registry)'
+      end
+    end
 
     it 'lists available integrations' do
       # This just verifies the API call works (may return empty array)
@@ -398,6 +448,14 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
 
   describe 'PromptClient' do
     let(:prompt_client) { clients.get_prompt_client }
+
+    before do
+      if IntegrationHelper.oss?
+        skip 'Prompt template management API not implemented in OSS Conductor (PromptTemplateRef ' \
+             'is only an inert, unresolved reference field on AGENT tasks; there is no ' \
+             'PromptResource/DAO backing a named template store)'
+      end
+    end
 
     it 'lists available prompts' do
       # This just verifies the API call works (may return empty array)

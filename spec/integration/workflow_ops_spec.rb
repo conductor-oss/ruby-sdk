@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require_relative 'integration_helper'
 require 'securerandom'
 
 # Workflow Operations integration tests - run with:

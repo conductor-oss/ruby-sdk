@@ -32,9 +32,11 @@ come from the usual `CONDUCTOR_*` variables; nothing else to configure.
 | [Secrets](concepts/secrets.md) | `secret()`, `secrets_env()`, how names reach the server and values reach the tool |
 | [Runtime and deployment](concepts/runtime.md) | `AgentRuntime`, `deploy`, `serve`, `CONDUCTOR_AGENT_*` settings, what runs where |
 
-Examples: [`examples/agents/`](../../examples/agents/) (`weather.rb`, `support_approval.rb`,
-`bug_desk.rb`). The 19 agents in `examples/agents/golden_agents.rb` serialize identically to
-the Python SDK's `examples/agents/_configs`; `dump_agent_configs.rb` regenerates them.
+Examples: [19 Python ports and playback instructions](../../examples/agents/README.md), plus
+`weather.rb`, `support_approval.rb`, and `bug_desk.rb`. Contract tests cover 20 golden agents
+and the actual configurations built by all 19 ports. Integration tests execute the example
+files themselves against Conductor OSS and the shared LLM recordings.
+See the [parity audit](../design/AGENTS_PARITY_AUDIT.md) for scope and evidence.
 
 ## Requirements
 
@@ -48,6 +50,6 @@ the Python SDK's `examples/agents/_configs`; `dump_agent_configs.rb` regenerates
 ## What is not ported
 
 Framework agents (OpenAI Agents SDK, LangGraph, Google ADK, Claude Agent SDK), skills,
-`plan_execute`, local code execution and CLI tools, schedules, semantic memory. See
+local code execution and CLI tools, schedules, semantic memory. See
 `docs/design/AGENTS_IMPLEMENTATION_PLAN.md` for the full list and the decisions behind the
 port.

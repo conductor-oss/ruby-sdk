@@ -46,7 +46,8 @@ module Conductor
       attr_reader :name, :tools, :agents, :guardrails, :handoffs, :callbacks, :credentials, :callback_procs
       attr_accessor :model, :instructions, :router, :output_type, :memory, :termination,
                     :max_turns, :max_tokens, :timeout_seconds, :temperature, :stateful,
-                    :metadata, :description, :external, :base_url, :prefill_tools, :approval_handler
+                    :metadata, :description, :external, :base_url, :prefill_tools, :approval_handler,
+                    :planner, :fallback, :fallback_max_turns, :planner_context
 
       # @param name [String] ^[a-zA-Z_][a-zA-Z0-9_-]*$
       # @param model [String, nil] "provider/model"; the left side is the server integration name
@@ -56,7 +57,7 @@ module Conductor
                      output_type: nil, guardrails: [], memory: nil, termination: nil, handoffs: [], callbacks: [],
                      credentials: [], max_turns: 25, max_tokens: nil, timeout_seconds: 0, temperature: nil,
                      stateful: false, metadata: nil, description: nil, external: false, base_url: nil,
-                     prefill_tools: [])
+                     prefill_tools: [], planner: nil, fallback: nil, fallback_max_turns: nil, planner_context: [])
         @name = name.to_s
         raise ConfigurationError, "invalid agent name #{name.inspect}: must match #{NAME_PATTERN.source}" unless NAME_PATTERN.match?(@name)
         raise ConfigurationError, 'max_turns must be >= 1' unless max_turns.is_a?(Integer) && max_turns >= 1
@@ -86,6 +87,16 @@ module Conductor
         @base_url = base_url
         @prefill_tools = Array(prefill_tools)
         @approval_handler = nil
+        @planner = planner
+        @fallback = fallback
+        @fallback_max_turns = fallback_max_turns
+        @planner_context = Array(planner_context)
+        [planner, fallback].compact.each do |child|
+          raise ConfigurationError, 'planner and fallback must be Agents' unless child.is_a?(Agent)
+        end
+        raise ConfigurationError, 'strategy: :plan_execute requires planner:' if @strategy == Strategy::PLAN_EXECUTE && planner.nil?
+        raise ConfigurationError, 'planner and fallback require strategy: :plan_execute' if (planner || fallback) && @strategy != Strategy::PLAN_EXECUTE
+        raise ConfigurationError, 'strategy: :plan_execute requires tools:' if @strategy == Strategy::PLAN_EXECUTE && Array(tools).empty?
 
         Array(tools).each { |t| add_tool(t) }
         Array(agents).each { |a| add_agent(a) }
@@ -274,7 +285,7 @@ module Conductor
       def all_agents
         list = [self]
         @agents.each { |a| list.concat(a.all_agents) }
-        list << @router if @router.is_a?(Agent) && !list.include?(@router)
+        [@router, @planner, @fallback].each { |a| list.concat(a.all_agents) if a.is_a?(Agent) }
         @tools.each do |t|
           child = t.config['agent'] if t.tool_type == ToolType::AGENT_TOOL
           list.concat(child.all_agents) if child.is_a?(Agent)

@@ -46,6 +46,45 @@ RSpec.describe Conductor::Agents::ToolRegistry do
     expect(result.output_data['temp_c']).to eq(21.0)
   end
 
+  it 'inherits credentials through teams and combines them for shared tools' do
+    first = a::Agent.new(name: 'first', model: 'm/x', tools: [SpecTools::Weather[:current]], credentials: ['FIRST'])
+    second = a::Agent.new(name: 'second', model: 'm/x', tools: [SpecTools::Weather[:current]], credentials: ['SECOND'])
+    team = a::Agent.new(name: 'team', agents: [first, second], credentials: ['TEAM'])
+    workers = registry.tool_workers(team)
+    expect(workers.size).to eq(1)
+    expect(workers.first.task_def_template.runtime_metadata).to match_array(%w[TEAM FIRST SECOND])
+  end
+
+  it 'serves custom tool guardrails and function routers required by the server' do
+    guard = a::Guardrail.new(name: 'tool_policy') { |content| content == 'safe' }
+    tool = a::ToolDef.new(name: 'action', func: -> { {} }, guardrails: [guard])
+    child = a::Agent.new(name: 'child', model: 'm/x', tools: [tool])
+    team = a::Agent.new(name: 'team', agents: [child], strategy: :router, router: ->(prompt) { "#{prompt}_route" })
+    workers = registry.workers_for(team, required_workers: %w[tool_policy team_router_fn])
+    router = workers.find { |worker| worker.task_definition_name == 'team_router_fn' }
+    task = Conductor::Http::Models::Task.new(input_data: { 'prompt' => 'child' })
+    expect(router.execute(task).output_data).to eq('selected_agent' => 'child_route')
+    policy = workers.find { |worker| worker.task_definition_name == 'tool_policy' }
+    expect(policy.execute(Conductor::Http::Models::Task.new(input_data: { 'content' => 'safe' })).output_data['passed']).to be true
+  end
+
+  it 'registers hoisted condition handoffs using the parent name' do
+    first = a::Agent.new(name: 'first', model: 'm/x')
+    second = a::Agent.new(name: 'second', model: 'm/x')
+    first.hands_off_to(second, on: ->(_context) { true })
+    team = a::Agent.new(name: 'team', agents: [first, second])
+    worker = registry.workers_for(team, required_workers: ['team_handoff_second']).first
+    expect(worker.task_definition_name).to eq('team_handoff_second')
+    expect(worker.execute(Conductor::Http::Models::Task.new(input_data: {})).output_data).to include('handoff' => true, 'target' => 'second')
+  end
+
+  it 'uses the first team member if a router raises, and an empty name without members' do
+    router = ->(_prompt) { raise 'unavailable' }
+    task = Conductor::Http::Models::Task.new(input_data: {})
+    expect(a::SystemWorkers.router(router, ['first'], logger: logger).call(task)).to eq('selected_agent' => 'first')
+    expect(a::SystemWorkers.router(router, [], logger: logger).call(task)).to eq('selected_agent' => '')
+  end
+
   it 'registers system workers only when the server requires them and warns about unknown names' do
     agent = a::Agent.new(name: 'bug_desk', model: 'm/x')
     agent.stop_when 'ISSUE_FILED'

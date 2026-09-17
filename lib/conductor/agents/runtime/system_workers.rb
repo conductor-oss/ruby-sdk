@@ -88,6 +88,16 @@ module Conductor
           'should_continue' => false }
       end
 
+      # Function-based routers return the selected sub-agent's name.
+      def router(callable, agent_names, logger: nil)
+        lambda do |task|
+          { 'selected_agent' => callable.call(stringify(task.input_data).fetch('prompt', '')).to_s }
+        rescue StandardError => e
+          logger&.error("router failed: #{e.class}: #{e.message}")
+          { 'selected_agent' => agent_names.first || '' }
+        end
+      end
+
       def stringify(input)
         (input || {}).transform_keys(&:to_s)
       end

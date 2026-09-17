@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Port all 19 requested Python agent examples, with integration tests that execute the examples directly and CI using Conductor OSS playback plus the shared recording verification action.
+- Add plan-and-compile agents with planner/fallback configuration, external worker declarations, explicit tool input schemas, SSE event callbacks, and structured approval responses.
+- Compare every example's configuration to Python-generated fixtures and validate the agent schema.
+
+### Fixed
+
+- Execute tasks claimed by `update-v2` within the existing worker slot instead of leaving them in progress.
+- Register individual task definitions without nesting the metadata request array.
+- Inherit tool credentials through agent trees and register callable routers, tool guardrails, and hoisted conditional handoffs.
+
 ## [0.1.0]
 
 ### Added

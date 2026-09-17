@@ -1,17 +1,21 @@
 # Ruby Agents Parity: Implementation Plan
 
-Status: implemented on `feature/conductor_agents`, 2026-09-08. Owner: Ruby SDK.
+Status: implementation extended 2026-09-17. Owner: Ruby SDK.
+
+See [the current parity audit](AGENTS_PARITY_AUDIT.md) for the 19 runnable Python ports,
+contract coverage, and real-server playback. The detailed work breakdown below records
+the original implementation plan; the status table and scope here supersede its old blockers.
 
 ## Status
 
 | Slice | State | Notes |
 |---|---|---|
 | Phase 0 (toolchain, token cache, runtimeMetadata, transport) | done | plus `update-v2` in the runner and `lease_extend_enabled` (2.18) |
-| Phase 1 (definition layer, serializer, contract tests) | done | 19/19 goldens identical to Python, schema-valid |
+| Phase 1 (definition layer, serializer, contract tests) | done | 20 golden contracts plus all 19 example configurations identical to Python, schema-valid |
 | Phase 2 (runtime, SSE, dispatch, secrets, system workers) | done | Net::HTTP SSE; polling fallback over `/agent/{id}/status` |
 | Phase 3.1 (WireMock replay of `tool_happy_path`) | done | zero unmatched requests; CI job `agents-replay` |
-| Phase 3.2 (record approval / secrets / team scenarios) | open | needs a server with AI enabled and provider keys |
-| Phase 3.3 (mockLLM functional suite) | open | blocked on the server-side `MockLLM` provider |
+| Phase 3.2 (approval / secrets / team scenarios) | implemented | covered by shared server LLM recordings and real HTTP/MCP services |
+| Phase 3.3 (mockLLM functional suite) | implemented | `agents-playback.yml` runs all 19 example files and the feature-branch shared verification action |
 | Phase 4 (examples, docs, changelog) | done | Confluence page refresh left to the owner (see 4.1) |
 
 Decisions taken during implementation that extend section 2: 2.18 (update-v2), 2.19 (swarm
@@ -51,15 +55,17 @@ unchanged against a Conductor server that has `conductor.integrations.ai.enabled
 | Tests | contract tests (schema + 19 golden configs), runtime tests (replay), CI job | `tests/unit/ai`, `examples/agents/_configs` |
 | Docs | README section, `docs/agents/`, three runnable examples, CHANGELOG | `docs/agents/` |
 
+The implemented surface also includes `plan_execute` with planner/fallback/context, callable
+routers, `a >> b`, `prefill_tools`, and structured `output_type`.
+
 ### Out of scope for this plan (Python has them; deliberately deferred)
 
 Framework agents (`framework`/`rawConfig`: OpenAI Agents, LangGraph, ADK, Claude Agent SDK),
-skills, `claude-code` pseudo-provider, `plan_execute` strategy (planner/fallback/plannerContext),
+skills, `claude-code` pseudo-provider,
 local code execution and CLI tools, OCG retrieval agent, schedules, semantic memory,
 `openai_compat.Runner`, OpenTelemetry tracing, liveness monitor / worker restarter,
-`scatter_gather`, `a >> b` sequential operator, `@agent`-on-methods (`Agent.from_instance`),
-`prefill_tools`, `output_type` (structured output via schema), `router` strategy with a worker
-router function, `gate`, `allowed_transitions`, `masked_fields`, `introduction`,
+`scatter_gather`, `@agent`-on-methods (`Agent.from_instance`),
+`gate`, `allowed_transitions`, `masked_fields`, `introduction`,
 `include_contents`, `thinking_config`, `reasoning_effort`, `context_window_budget`.
 
 The serializer will be written so any of these can be added as one field + one test later; none

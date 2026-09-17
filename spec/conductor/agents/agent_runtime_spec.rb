@@ -128,6 +128,20 @@ RSpec.describe Conductor::Agents::AgentRuntime do
       expect(execution.result(timeout: 5)).to eq('Sunny in Lisbon, 21C.')
     end
 
+    it 'delivers streaming events and isolates an event listener failure' do
+      allow(client).to receive(:start_agent).and_return('executionId' => 'EXEC_1', 'requiredWorkers' => [])
+      stub_stream(event('message', 'content' => 'Sunny'), event('done', 'output' => done_output))
+      observed = Queue.new
+      listener = lambda do |ev|
+        observed << ev['event']
+        raise 'display failed' if ev['event'] == 'message'
+      end
+      execution = runtime.call_async(agent, 'hi', on_event: listener)
+      expect(execution.result(timeout: 5)).to eq('Sunny in Lisbon, 21C.')
+      runtime.shutdown
+      expect([observed.pop, observed.pop]).to eq(%w[message done])
+    end
+
     it 'falls back to status polling when SSE is unavailable' do
       allow(client).to receive(:start_agent).and_return('executionId' => 'EXEC_1', 'requiredWorkers' => [])
       sse = instance_double(a::SseClient)

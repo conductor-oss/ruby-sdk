@@ -1,0 +1,61 @@
+[
+  {
+    "external": false,
+    "instructions": "You are a banking assistant. Use check_balance for balance inquiries. When asked to transfer money, first check the balance, then call transfer_funds to request the transfer. The runtime will pause for human approval before the transfer executes.",
+    "maxTurns": 25,
+    "model": "openai/gpt-4o-mini",
+    "name": "banker",
+    "timeoutSeconds": 0,
+    "tools": [
+      {
+        "description": "Check the balance of an account.",
+        "inputSchema": {
+          "properties": {
+            "account_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "account_id"
+          ],
+          "type": "object"
+        },
+        "name": "check_balance",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      },
+      {
+        "approvalRequired": true,
+        "description": "Request a funds transfer; runtime pauses for human approval before execution.",
+        "inputSchema": {
+          "properties": {
+            "amount": {
+              "type": "number"
+            },
+            "from_acct": {
+              "type": "string"
+            },
+            "to_acct": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "from_acct",
+            "to_acct",
+            "amount"
+          ],
+          "type": "object"
+        },
+        "name": "transfer_funds",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      }
+    ]
+  }
+]

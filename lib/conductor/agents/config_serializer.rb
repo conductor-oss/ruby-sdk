@@ -35,7 +35,7 @@ module Conductor
           'name' => agent.name,
           'model' => effective_model(agent),
           'baseUrl' => agent.base_url,
-          'strategy' => has_sub_agents ? strategy : nil,
+          'strategy' => has_sub_agents || agent.planner || agent.fallback ? strategy : nil,
           'maxTurns' => agent.max_turns,
           'timeoutSeconds' => agent.timeout_seconds,
           'external' => agent.external,
@@ -44,6 +44,7 @@ module Conductor
         }
         config['tools'] = agent.tools.map { |t| serialize_tool(t, agent_stateful: agent.stateful) } unless agent.tools.empty?
         config['agents'] = agent.agents.map { |a| serialize_agent(a) } if has_sub_agents
+        config.merge!(serialize_plan(agent))
         config['router'] = serialize_router(agent) unless agent.router.nil?
         config['outputType'] = serialize_output_type(agent.output_type) unless agent.output_type.nil?
         config['guardrails'] = agent.guardrails.map { |g| serialize_guardrail(g) } unless agent.guardrails.empty?
@@ -62,6 +63,15 @@ module Conductor
         }
       end
 
+      def serialize_plan(agent)
+        config = {}
+        config['planner'] = serialize_agent(agent.planner) if agent.planner
+        config['fallback'] = serialize_agent(agent.fallback) if agent.fallback
+        config['fallbackMaxTurns'] = agent.fallback_max_turns unless agent.fallback_max_turns.nil?
+        config['plannerContext'] = agent.planner_context unless agent.planner_context.empty?
+        config
+      end
+
       def serialize_extras(agent)
         extras = {}
         extras['metadata'] = agent.metadata if agent.metadata && !agent.metadata.empty?
@@ -76,7 +86,7 @@ module Conductor
         return agent.model if agent.model && !agent.model.to_s.empty?
         return nil if agent.external
 
-        inherited = agent.agents.map { |a| effective_model(a) }.compact.first
+        inherited = (agent.agents + [agent.planner, agent.fallback].compact).map { |a| effective_model(a) }.compact.first
         return inherited if inherited
 
         raise ConfigurationError,

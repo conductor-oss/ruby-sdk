@@ -37,12 +37,17 @@ module Conductor
       # Workers for every local tool in the tree (deduplicated by name)
       def tool_workers(agent, domain: nil)
         seen = {}
-        agent.all_agents.each do |a|
+        each_agent_with_credentials(agent) do |a, credentials|
           a.tools.each do |tool_def|
             next unless tool_def.local?
-            next if seen.key?(tool_def.name)
 
-            seen[tool_def.name] = build_tool_worker(tool_def, a, domain: domain)
+            if seen.key?(tool_def.name)
+              template = seen[tool_def.name].task_def_template
+              template.runtime_metadata = (template.runtime_metadata + credentials + tool_def.credentials).uniq
+              next
+            end
+
+            seen[tool_def.name] = build_tool_worker(tool_def, credentials: credentials, domain: domain)
           end
         end
         seen.values
@@ -56,10 +61,14 @@ module Conductor
             name = "#{a.name}#{SYSTEM_SUFFIX_TERMINATION}"
             workers << build_system_worker(name, SystemWorkers.termination(a.termination, logger: @logger), domain, a) if wanted?(required, name)
           end
-          a.guardrails.each do |g|
+          (a.guardrails + a.tools.flat_map(&:guardrails)).each do |g|
             next if g.external? || g.is_a?(RegexGuardrail) || g.is_a?(LlmGuardrail)
 
             workers << build_system_worker(g.name, SystemWorkers.guardrail(g, logger: @logger), domain, a) if wanted?(required, g.name)
+          end
+          if a.router.respond_to?(:call)
+            name = "#{a.name}_router_fn"
+            workers << build_system_worker(name, SystemWorkers.router(a.router, a.agents.map(&:name), logger: @logger), domain, a) if wanted?(required, name)
           end
           a.callback_positions.each do |position|
             name = "#{a.name}_#{position}"
@@ -67,7 +76,9 @@ module Conductor
 
             workers << build_system_worker(name, SystemWorkers.callback(a.callback_chain(position, logger: @logger), logger: @logger), domain, a)
           end
-          a.handoffs.each do |h|
+          handoffs = a.handoffs
+          handoffs += a.agents.flat_map(&:handoffs) if !a.strategy_set? || a.strategy == Strategy::SWARM
+          handoffs.each do |h|
             next unless h.is_a?(Handoff::OnCondition)
 
             name = "#{a.name}_handoff_#{h.target}"
@@ -97,8 +108,8 @@ module Conductor
         required.nil? || required.include?(name)
       end
 
-      def build_tool_worker(tool_def, agent, domain:)
-        credentials = tool_def.credentials + agent.credentials
+      def build_tool_worker(tool_def, credentials:, domain:)
+        credentials = tool_def.credentials + credentials
         Worker::Worker.new(
           tool_def.name,
           ->(task) { Dispatch.run_tool_task(task, tool_def, logger: @logger) },
@@ -107,6 +118,14 @@ module Conductor
                                                          retry_delay_seconds: tool_def.retry_delay_seconds,
                                                          retry_logic: tool_def.retry_logic, credentials: credentials)
         )
+      end
+
+      def each_agent_with_credentials(agent, inherited = [], &block)
+        credentials = (inherited + agent.credentials).uniq
+        yield agent, credentials
+        children = agent.agents + [agent.router, agent.planner, agent.fallback].grep(Agent)
+        children += agent.tools.filter_map { |tool| tool.config['agent'] if tool.tool_type == ToolType::AGENT_TOOL }.grep(Agent)
+        children.each { |child| each_agent_with_credentials(child, credentials, &block) }
       end
 
       def build_system_worker(name, body, domain, agent)

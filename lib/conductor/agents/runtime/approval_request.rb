@@ -44,17 +44,23 @@ module Conductor
 
       # Let the tool run
       def approve
-        respond { @client.approve(@execution_id) }
+        complete_response { @client.approve(@execution_id) }
       end
 
       # Skip the tool; the run ends COMPLETED with finish_reason :rejected
       def reject(reason = '')
-        respond { @client.reject(@execution_id, reason) }
+        complete_response { @client.reject(@execution_id, reason) }
       end
 
       # Free-text answer (human tools / feedback)
       def send_message(message)
-        respond { @client.send_message(@execution_id, message) }
+        complete_response { @client.send_message(@execution_id, message) }
+      end
+
+      # Submit fields requested by response_schema (approval plus reviewer feedback,
+      # or structured input for a human tool).
+      def respond(body)
+        complete_response { @client.respond(@execution_id, body) }
       end
 
       # request.amount, request.order_id ... read the first tool call's arguments
@@ -77,7 +83,7 @@ module Conductor
 
       private
 
-      def respond
+      def complete_response
         raise Error, 'approval request already answered' if @responded
 
         yield

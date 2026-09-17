@@ -308,16 +308,21 @@ module Conductor
       # Execute a task and update the result
       # @param task [Hash] Task data from API
       def execute_and_update(task)
-        task_result = execute_task(task)
+        while task
+          task_result = execute_task(task)
 
-        # Skip update for TaskInProgress (task stays in IN_PROGRESS state)
-        return if task_result.nil?
+          # Skip update for TaskInProgress (task stays in IN_PROGRESS state)
+          return if task_result.nil?
 
-        # Don't update if result is IN_PROGRESS (will be polled again)
-        return if task_result.status == Http::Models::TaskResultStatus::IN_PROGRESS &&
-                  task_result.callback_after_seconds&.positive?
+          # Don't update if result is IN_PROGRESS (will be polled again)
+          return if task_result.status == Http::Models::TaskResultStatus::IN_PROGRESS &&
+                    task_result.callback_after_seconds&.positive?
 
-        update_task_with_retry(task_result)
+          # update-v2 has already claimed the returned task. Reuse this executor slot
+          # rather than dropping it or exceeding the worker's concurrency limit.
+          response = update_task_with_retry(task_result)
+          task = response.is_a?(Http::Models::Task) ? response : nil
+        end
       end
 
       # Execute a task
@@ -461,11 +466,11 @@ module Conductor
 
           start_time = Time.now
           begin
-            send_task_update(task_result)
+            next_task = send_task_update(task_result)
             duration_ms = (Time.now - start_time) * 1000
 
             publish_task_update_completed(task_result, duration_ms)
-            return # Success
+            return next_task
           rescue StandardError => e
             duration_ms = (Time.now - start_time) * 1000
             @logger.error("Task update failed (attempt #{attempt + 1}/#{RETRY_BACKOFFS.size}): #{e.message}")
@@ -477,12 +482,13 @@ module Conductor
             end
           end
         end
+        nil
       end
 
       # Send the task result to the server, preferring the v2 endpoint
       # @param task_result [TaskResult]
       def send_task_update(task_result)
-        return @task_client.update_task(task_result) unless @use_update_v2.true?
+        return @task_client.update_task(task_result) unless @use_update_v2.true? && running?
 
         task_result.extend_lease = false if task_result.extend_lease.nil?
         begin

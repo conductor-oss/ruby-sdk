@@ -20,6 +20,18 @@ RSpec.describe Conductor::Worker::TaskDefinitionRegistrar do
   end
 
   describe '#register' do
+    [true, false].each do |overwrite|
+      it "creates a flat task definition array when missing (overwrite=#{overwrite})" do
+        metadata = instance_double(Conductor::Client::MetadataClient)
+        allow(Conductor::Client::MetadataClient).to receive(:new).and_return(metadata)
+        method = overwrite ? :update_task_def : :get_task_def
+        allow(metadata).to receive(method).and_raise(Conductor::ApiError.new('missing', status: 404))
+        expect(metadata).to receive(:register_task_def).with(an_instance_of(Conductor::Http::Models::TaskDef))
+        worker = Conductor::Worker::Worker.new('new_task', register_task_def: true, overwrite_task_def: overwrite) { {} }
+        expect(registrar.register(worker)).to be true
+      end
+    end
+
     context 'when worker.register_task_def is false' do
       it 'returns false without registering' do
         worker = Conductor::Worker::Worker.new('test_task', register_task_def: false) { {} }

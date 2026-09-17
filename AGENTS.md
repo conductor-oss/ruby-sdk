@@ -556,10 +556,10 @@ spec/
 │   ├── http/
 │   ├── worker/
 │   └── agents/                            # Agents unit + contract tests (no server)
-│       └── contract_spec.rb               # 19 golden configs must equal python-sdk + validate against agent-schema.json
+│       └── contract_spec.rb               # 20 golden configs must equal python-sdk + validate against agent-schema.json
 ├── fixtures/agents/                       # vendored agent-schema.json and golden configs
 ├── agents/                                # Replay tests against WireMock (conductor-mocks recordings)
-└── integration/                           # Requires live server
+└── integration/                           # Requires live server; agents/ wraps the 19 examples in OSS playback
 ```
 
 ### Running Tests

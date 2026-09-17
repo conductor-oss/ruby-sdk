@@ -1,0 +1,99 @@
+[
+  {
+    "external": false,
+    "instructions": "You are a customer support agent. Use the available tools to look up customers, check inventory, process orders, and format responses for the customer.",
+    "maxTurns": 25,
+    "model": "openai/gpt-4o-mini",
+    "name": "support_agent",
+    "timeoutSeconds": 0,
+    "tools": [
+      {
+        "description": "Format a data dictionary into a human-readable string.",
+        "inputSchema": {
+          "properties": {
+            "data": {
+              "additionalProperties": {},
+              "type": "object"
+            }
+          },
+          "required": [
+            "data"
+          ],
+          "type": "object"
+        },
+        "name": "format_response",
+        "outputSchema": {
+          "type": "string"
+        },
+        "toolType": "worker"
+      },
+      {
+        "description": "Look up customer details from the CRM system.",
+        "inputSchema": {
+          "properties": {
+            "customer_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "customer_id"
+          ],
+          "type": "object"
+        },
+        "name": "get_customer",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      },
+      {
+        "description": "Check product availability in a warehouse.",
+        "inputSchema": {
+          "properties": {
+            "product_id": {
+              "type": "string"
+            },
+            "warehouse": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "product_id"
+          ],
+          "type": "object"
+        },
+        "name": "check_inventory",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      },
+      {
+        "description": "Process a customer order. Actions: refund, cancel, update.",
+        "inputSchema": {
+          "properties": {
+            "action": {
+              "type": "string"
+            },
+            "order_id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "order_id",
+            "action"
+          ],
+          "type": "object"
+        },
+        "name": "process_order",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      }
+    ]
+  }
+]

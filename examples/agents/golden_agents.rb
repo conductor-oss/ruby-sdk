@@ -1,12 +1,13 @@
 # frozen_string_literal: true
 
-# The 19 agents whose serialized agentConfig must match the Python SDK byte for byte
+# Agents whose serialized agentConfig must match the Python SDK byte for byte
 # (spec/fixtures/agents/configs/*.json, vendored from python-sdk examples/agents/_configs).
 #
 # Used by spec/conductor/agents/contract_spec.rb and by dump_agent_configs.rb.
 # Each example keeps its tools in its own module so that tools with the same name but
 # different descriptions (get_weather in 02 vs 03) do not collide.
 require 'conductor/agents'
+require_relative '103_plan_and_compile'
 
 module GoldenAgents
   MODEL = ENV.fetch('CONDUCTOR_AGENT_LLM_MODEL', 'anthropic/claude-sonnet-4-6')
@@ -364,6 +365,8 @@ module GoldenAgents
                    callbacks: [MonitorHandler.new],
                    instructions: 'You are a helpful assistant. Use get_facts when asked about topics.')
     },
+
+    '103_plan_and_compile' => -> { Example103PlanAndCompile.build(model: MODEL) },
 
     '52_nested_strategies' => lambda {
       market = A::Agent.new(name: 'market_analyst_52', model: MODEL,

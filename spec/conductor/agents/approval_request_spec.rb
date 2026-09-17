@@ -43,4 +43,12 @@ RSpec.describe Conductor::Agents::ApprovalRequest do
     expect(client).to receive(:send_message).with('EXEC_1', 'hello')
     described_class.new('EXEC_1', pending_tool, client: client).send_message('hello')
   end
+
+  it 'submits structured human responses including reviewer feedback exactly once' do
+    response = { 'approved' => true, 'reason' => 'Reviewed' }
+    expect(client).to receive(:respond).with('EXEC_1', response).once
+    request.respond(response)
+    expect(request.responded?).to be true
+    expect { request.respond(response) }.to raise_error(Conductor::Agents::Error, /already/)
+  end
 end

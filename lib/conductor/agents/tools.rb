@@ -25,8 +25,8 @@ module Conductor
     # both on the receiver (Weather[:get_weather], Weather.tool_defs) and in the global
     # registry that Agent#add_tool(:get_weather) consults.
     module Tools
-      TOOL_OPTIONS = %i[description output_schema approval_required timeout_seconds credentials
-                        stateful max_calls retry_count retry_delay_seconds retry_policy].freeze
+      TOOL_OPTIONS = %i[description input_schema output_schema approval_required timeout_seconds credentials
+                        stateful max_calls retry_count retry_delay_seconds retry_policy external].freeze
 
       # Weather[:current] on a module that `extend Conductor::Agents::Tools`
       module Lookup
@@ -75,7 +75,7 @@ module Conductor
           raise ConfigurationError, "unknown tool option(s): #{unknown.inspect}" unless unknown.empty?
 
           tool_name = (name || method.name).to_s
-          input_schema = SchemaBuilder.input_schema(method)
+          input_schema = options.fetch(:input_schema) { SchemaBuilder.input_schema(method) }
           credentials = SecretScanner.scan(method)
 
           ToolDef.new(
@@ -83,7 +83,7 @@ module Conductor
             description: options.fetch(:description) { humanize(method.name) },
             input_schema: input_schema,
             output_schema: options.fetch(:output_schema) { SchemaBuilder.default_output_schema },
-            func: method,
+            func: options[:external] ? nil : method,
             approval_required: options.fetch(:approval_required, false),
             timeout_seconds: options[:timeout_seconds],
             credentials: credentials + Array(options[:credentials]),

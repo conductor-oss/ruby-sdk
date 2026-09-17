@@ -14,6 +14,7 @@ module Conductor
 
       # @param api_client [Http::ApiClient]
       def initialize(api_client)
+        @api_client = api_client
         @agent_api = Http::Api::AgentResourceApi.new(api_client)
       end
 
@@ -35,6 +36,12 @@ module Conductor
 
       def get_status(execution_id)
         wrap { @agent_api.status(execution_id) }
+      end
+
+      # Stream raw agent events; runtime consumers can instead use call_async(on_event:).
+      def stream_sse(execution_id, last_event_id: nil, &block)
+        require_relative '../agents/runtime/sse_client'
+        Agents::SseClient.new(@api_client).each_event(execution_id, last_event_id: last_event_id, &block)
       end
 
       def get_execution(execution_id)

@@ -24,6 +24,7 @@ require_relative 'agents/callback_handler'
 require_relative 'agents/memory'
 require_relative 'agents/prompt_template'
 require_relative 'agents/agent'
+require_relative 'agents/plans'
 require_relative 'agents/config_serializer'
 require_relative 'agents/runtime/agent_config'
 require_relative 'agents/runtime/dispatch'
@@ -40,11 +41,13 @@ module Conductor
   module Agents
     include Tools
     include Secrets
+    include Plans
 
     class << self
       # Tools and secrets are usable at the module level too (Conductor::Agents.tool ...)
       include Tools
       include Secrets
+      include Plans
 
       # The default runtime used by Agent#call_sync / #call_async (built from the environment)
       # @return [AgentRuntime]

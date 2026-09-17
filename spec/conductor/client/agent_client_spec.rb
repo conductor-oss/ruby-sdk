@@ -30,6 +30,17 @@ RSpec.describe Conductor::Client::AgentClient do
     client.list_executions(size: 1)
   end
 
+  it 'streams with the existing authenticated transport and reconnect cursor' do
+    require 'conductor/agents'
+    stream = instance_double(Conductor::Agents::SseClient)
+    event = { 'event' => 'done', 'data' => {} }
+    expect(Conductor::Agents::SseClient).to receive(:new).with(api_client).and_return(stream)
+    expect(stream).to receive(:each_event).with('E', last_event_id: 7).and_yield(event)
+    received = []
+    client.stream_sse('E', last_event_id: 7) { |value| received << value }
+    expect(received).to eq([event])
+  end
+
   it 'builds approval bodies like the Python client' do
     expect(agent_api).to receive(:respond).with('E', { 'approved' => true })
     expect(agent_api).to receive(:respond).with('E', { 'approved' => false, 'reason' => 'Needs a manager' })

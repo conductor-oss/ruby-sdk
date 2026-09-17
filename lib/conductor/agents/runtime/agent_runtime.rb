@@ -52,7 +52,7 @@ module Conductor
       # @yield [answer, execution] runs on the stream thread when the execution finishes
       # @return [Execution]
       def call_async(agent, prompt, session_id: nil, media: nil, context: nil, idempotency_key: nil,
-                     timeout_seconds: nil, &on_done)
+                     timeout_seconds: nil, on_event: nil, &on_done)
         payload = start_payload(agent, prompt, session_id: session_id, media: media, context: context,
                                                idempotency_key: idempotency_key, timeout_seconds: timeout_seconds)
         response = @client.start_agent(payload)
@@ -60,7 +60,7 @@ module Conductor
 
         execution = Execution.new(execution_id, client: @client, agent_name: response['agentName'] || agent.name, runtime: self)
         start_workers(agent, response['requiredWorkers'], domain: payload['runId'])
-        attach(execution, agent: agent, &on_done)
+        attach(execution, agent: agent, on_event: on_event, &on_done)
         execution
       end
 
@@ -93,11 +93,11 @@ module Conductor
       end
 
       # Follow an execution on a background thread (used by call_async and Execution#result)
-      def attach(execution, agent: nil, &on_done)
+      def attach(execution, agent: nil, on_event: nil, &on_done)
         execution.attached!
         thread = Thread.new do
           Thread.current.name = "conductor-agent-stream-#{execution.execution_id}"
-          follow(execution, agent, &on_done)
+          follow(execution, agent, on_event: on_event, &on_done)
         end
         @mutex.synchronize { @stream_threads << thread }
         thread
@@ -159,10 +159,11 @@ module Conductor
         @logger.info("agent workers started: #{fresh.map(&:task_definition_name).join(', ')}")
       end
 
-      def follow(execution, agent, &on_done)
+      def follow(execution, agent, on_event: nil, &on_done)
         events = event_source(execution.execution_id)
         events.each do |event|
           handle_event(execution, agent, event)
+          run_callback(on_event, event) if on_event
           break if execution.done?
         end
         execution.fail('stream ended before the execution finished') unless execution.done?

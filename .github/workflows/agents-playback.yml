@@ -1,0 +1,70 @@
+name: Agents playback
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+  workflow_dispatch:
+
+jobs:
+  playback:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      CONDUCTOR_SERVER_URL: http://localhost:18080/api
+      CONDUCTOR_AGENT_LLM_MODEL: mock/mockLLM
+      CONDUCTOR_AGENTS_PLAYBACK: 'true'
+      GITHUB_REPOS_URL: http://localhost:3002/users/Conductor/repos?per_page=5&sort=updated
+    steps:
+      - uses: actions/checkout@v4
+      - name: Checkout matching server and shared recordings
+        uses: actions/checkout@v4
+        with:
+          repository: conductor-oss/conductor
+          ref: feature/llm_mock_impl
+          path: tmp/conductor
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build playback server
+        working-directory: tmp/conductor
+        run: ./gradlew --no-daemon :conductor-server:bootJar -x test
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install MCP test service
+        run: pip install mcp-testkit==1.0.4
+      - name: Start fresh playback server and HTTP/MCP services
+        id: server
+        run: bash .github/scripts/start-agent-playback.sh tmp/conductor
+      - name: Start external worker services
+        run: |
+          bundle exec ruby -Ilib examples/agents/external_workers.rb > tmp/agent-playback/workers.log 2>&1 &
+          echo $! > tmp/agent-playback/workers.pid
+      - name: Run the examples through their integration wrapper
+        run: bundle exec rspec spec/integration/agents/ --format documentation
+      - name: Verify every shared recording was played
+        if: always() && steps.server.outcome == 'success'
+        uses: conductor-oss/conductor/.github/actions/check-playback@feature/llm_mock_impl
+        with:
+          server-url: http://localhost:18080/api
+      - name: Upload playback diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agents-playback-logs
+          path: tmp/agent-playback/*.log
+      - name: Stop test services
+        if: always()
+        run: |
+          for file in tmp/agent-playback/*.pid; do
+            [ -f "$file" ] && kill "$(cat "$file")" 2>/dev/null || true
+          done

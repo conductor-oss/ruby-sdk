@@ -1,0 +1,83 @@
+[
+  {
+    "external": false,
+    "instructions": "You can reverse strings and format reports. When asked to reverse a string, use reverse_string first, then format_report with the result.",
+    "maxTurns": 25,
+    "model": "openai/gpt-4o-mini",
+    "name": "http_tools_demo",
+    "timeoutSeconds": 0,
+    "tools": [
+      {
+        "description": "Format a title and body into a structured report.",
+        "inputSchema": {
+          "properties": {
+            "body": {
+              "type": "string"
+            },
+            "title": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "title",
+            "body"
+          ],
+          "type": "object"
+        },
+        "name": "format_report",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      },
+      {
+        "config": {
+          "accept": [
+            "application/json"
+          ],
+          "contentType": "application/json",
+          "credentials": [
+            "HTTP_TEST_API_KEY"
+          ],
+          "headers": {
+            "Authorization": "Bearer ${HTTP_TEST_API_KEY}"
+          },
+          "method": "POST",
+          "url": "http://localhost:3001/api/string/reverse"
+        },
+        "description": "Reverse a string using the HTTP API",
+        "inputSchema": {
+          "properties": {
+            "text": {
+              "description": "Text to reverse",
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
+        },
+        "name": "reverse_string",
+        "toolType": "http"
+      },
+      {
+        "config": {
+          "credentials": [
+            "MCP_TEST_API_KEY"
+          ],
+          "headers": {
+            "Authorization": "Bearer ${MCP_TEST_API_KEY}"
+          },
+          "max_tools": 64,
+          "server_url": "http://localhost:3001/mcp"
+        },
+        "description": "Deterministic test tools via MCP \u2014 math, string, collection, encoding, hash, datetime, validation, and conversion operations.",
+        "inputSchema": {},
+        "name": "mcp_test_tools",
+        "toolType": "mcp"
+      }
+    ]
+  }
+]

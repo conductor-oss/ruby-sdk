@@ -123,10 +123,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: conductor-oss/conductor-mocks
+          ref: 3bbd213a01311d0ba69210eb8723580ba2708c02 # feature/poc_example agent recordings
           path: conductor-mocks
 
       - name: Start WireMock with agent/tool_happy_path
         run: |
+          test -f conductor-mocks/mocks/agent/tool_happy_path/mappings/01_post_api_agent_start.json
           docker run -d --name wiremock -p 8080:8080 \
             -v "$PWD/conductor-mocks/mocks/agent/tool_happy_path:/home/wiremock" \
             wiremock/wiremock:3x

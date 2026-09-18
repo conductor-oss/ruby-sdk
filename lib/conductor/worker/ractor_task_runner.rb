@@ -143,7 +143,7 @@ module Conductor
           server_api_url: @configuration_hash[:server_api_url]
         )
         if @configuration_hash[:authentication_settings]
-          config.authentication_settings = Configuration::AuthenticationSettings.new(
+          config.authentication_settings = AuthenticationSettings.new(
             key_id: @configuration_hash[:authentication_settings][:key_id],
             key_secret: @configuration_hash[:authentication_settings][:key_secret]
           )

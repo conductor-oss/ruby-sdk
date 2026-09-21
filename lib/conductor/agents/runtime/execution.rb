@@ -2,17 +2,10 @@
 
 require 'timeout'
 require_relative '../errors'
+require_relative 'approval_request'
 
 module Conductor
   module Agents
-    # A tool call observed on the stream
-    ToolCall = Struct.new(:name, :arguments, :result, keyword_init: true) do
-      def to_s
-        "#<ToolCall #{name} #{(arguments || {}).map { |k, v| "#{k}: #{v.inspect}" }.join(' ')}>"
-      end
-      alias_method :inspect, :to_s
-    end
-
     # Token usage for an execution (summed over sub-agent executions)
     TokenUsage = Struct.new(:prompt_tokens, :completion_tokens, :total_tokens, keyword_init: true) do
       def initialize(prompt_tokens: 0, completion_tokens: 0, total_tokens: 0)
@@ -96,7 +89,9 @@ module Conductor
         if status['isComplete']
           finish(status: status['status'], output: status['output'], reason: status['reasonForIncompletion'])
         elsif status['isWaiting']
-          mark_waiting(status['pendingTool'])
+          mark_waiting(ApprovalRequest.new(@execution_id, status['pendingTool'], client: @client, execution: self))
+        else
+          clear_waiting
         end
         self
       end

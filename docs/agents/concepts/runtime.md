@@ -43,6 +43,11 @@ Every worker registers its TaskDef with the Python SDK's defaults: `retryCount 2
 `retryDelaySeconds 2`, `retryLogic LINEAR_BACKOFF`, `timeoutSeconds 0`,
 `responseTimeoutSeconds 10`, `timeoutPolicy RETRY`, `runtimeMetadata` = declared secret names.
 Task results go to `POST /api/tasks/update-v2` (with a one-time fallback to `POST /api/tasks`).
+While a tool or system worker runs, the SDK renews its lease at 80% of the task's
+`responseTimeoutSeconds` (every 8 seconds for the default timeout). Renewals use
+`POST /api/tasks` with `extendLease: true` and stop before the final result is sent.
+Tasks with no positive response timeout do not need renewal. Agent workers enable
+`lease_extend_enabled` by default; other workers can opt in with that option.
 
 An agent execution is a Conductor workflow: `execution_id` is the workflow id, and the
 workflow, task and prompt data are visible in the Conductor UI like any other run.

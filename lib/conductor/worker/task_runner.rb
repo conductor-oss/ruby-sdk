@@ -10,6 +10,7 @@ require_relative '../exceptions'
 require_relative 'task_context'
 require_relative 'task_in_progress'
 require_relative 'worker_config'
+require_relative 'lease_renewer'
 require_relative 'events/task_runner_events'
 require_relative 'events/sync_event_dispatcher'
 require_relative 'events/listener_registry'
@@ -43,6 +44,7 @@ module Conductor
 
         # Create task client for API communication
         @task_client = Client::TaskClient.new(@configuration)
+        @lease_renewer = LeaseRenewer.new(task_client: @task_client, logger: @logger)
 
         # Resolve worker configuration
         resolved_config = WorkerConfig.resolve(
@@ -179,6 +181,7 @@ module Conductor
         @worker_id = config[:worker_id]
         @domain = config[:domain]
         @poll_timeout = config[:poll_timeout]
+        @lease_extend_enabled = config[:lease_extend_enabled]
       end
 
       # Cleanup completed task futures
@@ -353,7 +356,11 @@ module Conductor
 
         begin
           # Execute worker
-          task_result = @worker.execute(task_obj)
+          task_result = if @lease_extend_enabled
+                          @lease_renewer.during(task_obj, worker_id: @worker_id) { @worker.execute(task_obj) }
+                        else
+                          @worker.execute(task_obj)
+                        end
 
           duration_ms = (Time.now - start_time) * 1000
 

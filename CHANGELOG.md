@@ -23,7 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Canonical (harmonized) metrics as the sole metric surface -- [details](docs/METRICS_AND_INTERCEPTORS.md#detailed-technical-notes----unreleased)
+- Canonical (harmonized) metrics as the sole metric surface
 - Bounded `uri` label on `http_api_client_request_seconds`: uses path templates (e.g. `/workflow/{workflowId}`) instead of fully-resolved paths, preventing metric cardinality explosion
 - `WorkflowStatusProbe` in harness: opt-in probe (via `HARNESS_PROBE_RATE_PER_SEC`) that exercises UUID-bearing endpoints to validate template URI metrics
 
@@ -78,7 +78,7 @@ end
 
 ### Added
 
-- **Agents** (`require 'conductor/agents'`) - Ruby port of the Python SDK's agents package, same `agentConfig` on the wire -- [guide](docs/agents/README.md)
+- **Agents** (`require 'conductor/agents'`) - Ruby port of the Python SDK's agents package, same `agentConfig` on the wire
   - `tool def` DSL: types from keyword defaults, secrets from `secret('...')` literals, `describe`, `requires_approval`, module scoping, RubyLLM::Tool adapter
   - `Agent` with `add_tool`, `add_agent`, `hands_off_to`, `redact`, `stop_when`, `stop_after`, `on_approval`, `>>`; guardrails, termination conditions, handoffs, callbacks, memory, prompt templates
   - `ConfigSerializer` verified against the Python SDK's 19 golden configs and `agent-schema.json`

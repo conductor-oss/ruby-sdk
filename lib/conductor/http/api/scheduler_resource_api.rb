@@ -67,27 +67,24 @@ module Conductor
         end
 
         # Pause a schedule
+        #
+        # Per-schedule pause/resume is PUT-mapped on OSS Conductor but GET-only
+        # on some Orkes Conductor deployments. PUT is tried first and a 405
+        # response falls back to GET, mirroring the python-sdk/csharp-sdk/rust-sdk
+        # clients.
         # @param [String] name Schedule name
         # @return [void]
         def pause_schedule(name)
-          @api_client.call_api(
-            '/scheduler/schedules/{name}/pause',
-            'GET',
-            path_params: { name: name },
-            return_http_data_only: true
-          )
+          call_with_verb_fallback('/scheduler/schedules/{name}/pause', name)
         end
 
         # Resume a schedule
+        #
+        # See {#pause_schedule} for the PUT-with-GET-fallback rationale.
         # @param [String] name Schedule name
         # @return [void]
         def resume_schedule(name)
-          @api_client.call_api(
-            '/scheduler/schedules/{name}/resume',
-            'GET',
-            path_params: { name: name },
-            return_http_data_only: true
-          )
+          call_with_verb_fallback('/scheduler/schedules/{name}/resume', name)
         end
 
         # Pause all schedules
@@ -202,6 +199,28 @@ module Conductor
             'DELETE',
             path_params: { name: name },
             body: tags,
+            return_http_data_only: true
+          )
+        end
+
+        private
+
+        # Try PUT first (OSS dialect); fall back to GET on 405 (some Orkes
+        # deployments only accept GET for these two routes).
+        def call_with_verb_fallback(templated_path, name)
+          @api_client.call_api(
+            templated_path,
+            'PUT',
+            path_params: { name: name },
+            return_http_data_only: true
+          )
+        rescue Conductor::ApiError => e
+          raise unless e.status == 405
+
+          @api_client.call_api(
+            templated_path,
+            'GET',
+            path_params: { name: name },
             return_http_data_only: true
           )
         end

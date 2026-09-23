@@ -16,6 +16,10 @@ jobs:
       CONDUCTOR_SERVER_URL: http://localhost:18080/api
       CONDUCTOR_AGENT_LLM_MODEL: mock/mockLLM
       CONDUCTOR_AGENTS_PLAYBACK: 'true'
+      CONDUCTOR_PLAYBACK_WORK_DIR: tmp/agent-playback
+      CONDUCTOR_SECRET_GITHUB_TOKEN: playback-test-key
+      CONDUCTOR_SECRET_HTTP_TEST_API_KEY: playback-test-key
+      CONDUCTOR_SECRET_MCP_TEST_API_KEY: playback-test-key
       GITHUB_REPOS_URL: http://localhost:3002/users/Conductor/repos?per_page=5&sort=updated
     steps:
       - uses: actions/checkout@v4
@@ -42,26 +46,23 @@ jobs:
           python-version: '3.12'
       - name: Install MCP test service
         run: pip install mcp-testkit==1.0.4
-      - name: Start fresh playback server and HTTP/MCP services
+      - name: Start HTTP and MCP services and verify authenticated endpoints
+        run: bash .github/scripts/start-agent-services.sh tmp/conductor
+      - name: Start fresh playback server
         id: server
-        run: bash .github/scripts/start-agent-playback.sh tmp/conductor
-      - name: Start external worker services
-        run: |
-          bundle exec ruby -Ilib examples/agents/external_workers.rb > tmp/agent-playback/workers.log 2>&1 &
-          echo $! > tmp/agent-playback/workers.pid
-      - name: Run the examples through their integration wrapper
-        run: bundle exec rspec spec/integration/agents/ --format documentation
-      - name: Verify every shared recording was played
-        if: always() && steps.server.outcome == 'success'
-        uses: conductor-oss/conductor/.github/actions/check-playback@feature/llm_mock_impl
-        with:
-          server-url: http://localhost:18080/api
+        uses: ./tmp/conductor/.github/actions/start-playback
+      - name: Run all agent examples and verify shared recordings
+        env:
+          CONDUCTOR_PLAYBACK_SERVICES_STARTED: 'true'
+        run: bash scripts/run-agents-playback.sh tmp/conductor
       - name: Upload playback diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: agents-playback-logs
-          path: tmp/agent-playback/*.log
+          path: |
+            tmp/agent-playback/*.log
+            tmp/agent-playback/results.json
       - name: Stop test services
         if: always()
         run: |

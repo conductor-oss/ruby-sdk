@@ -20,10 +20,16 @@ For local OSS integration tests (requires Docker and Ruby):
 scripts/run-integration-oss.sh
 ```
 
-Agent contract tests use the schema and Python fixtures in
-[spec/fixtures/agents](spec/fixtures/agents/README.md). The Python serializer is
-the parity source; the server's `agentConfig` is the wire contract. Agent playback
-setup lives in [.github/workflows/agents-playback.yml](.github/workflows/agents-playback.yml).
+Add agent examples in `examples/agents/` and run them against Conductor with
+LLM recording enabled:
+
+```bash
+bundle exec ruby -Ilib examples/agents/my_example.rb
+```
+
+Collect the recording JSON files and open a PR adding them to `llm-recordings/`
+in [conductor-oss/conductor](https://github.com/conductor-oss/conductor).
+Register the Ruby example in `examples/agents/catalog.rb` so CI replays it.
 
 Without local Ruby, run unit tests and lint in Docker:
 

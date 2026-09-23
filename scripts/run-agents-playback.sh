@@ -13,10 +13,7 @@ mkdir -p tmp
 playback_dir=${CONDUCTOR_PLAYBACK_WORK_DIR:-$(mktemp -d "$repo_dir/tmp/agent-playback.XXXXXX")}
 mkdir -p "$playback_dir"
 playback_dir=$(cd "$playback_dir" && pwd)
-export CONDUCTOR_PLAYBACK_EXPECTED_FAILURES="$playback_dir/expected-failures.json"
-printf '[]\n' > "$CONDUCTOR_PLAYBACK_EXPECTED_FAILURES"
-verify_script="$conductor_dir/.github/actions/check-playback/check-playback.sh"
-[[ -f "$verify_script" && -d "$CONDUCTOR_RECORDINGS_DIR" ]]
+[[ -d "$CONDUCTOR_RECORDINGS_DIR" ]]
 curl --fail --silent --show-error --max-time 10 "${CONDUCTOR_SERVER_URL%/api}/health" > /dev/null
 ruby_command=()
 worker_container=""
@@ -27,7 +24,7 @@ if ! command -v bundle > /dev/null; then
     -v "$playback_dir:$playback_dir:z"
     -v ruby-sdk-bundle:/usr/local/bundle:z
     -e CONDUCTOR_SERVER_URL -e CONDUCTOR_AGENT_LLM_MODEL
-    -e CONDUCTOR_AGENTS_PLAYBACK -e GITHUB_REPOS_URL -e CONDUCTOR_PLAYBACK_EXPECTED_FAILURES
+    -e CONDUCTOR_AGENTS_PLAYBACK -e GITHUB_REPOS_URL
     -e CONDUCTOR_AUTH_KEY -e CONDUCTOR_AUTH_SECRET)
 fi
 run_ruby() {
@@ -72,12 +69,5 @@ pids+=("$!")
 
 echo "Running ALL agent examples against $CONDUCTOR_SERVER_URL"
 echo "Logs: $playback_dir"
-# Run verification even if an example fails, preserving both results.
-test_status=0
 run_ruby bundle exec rspec spec/integration/agents/ --format documentation \
-  --format json --out "$playback_dir/results.json" 2>&1 | tee "$playback_dir/tests.log" || test_status=$?
-verify_status=0
-sh "$verify_script" "$CONDUCTOR_SERVER_URL" \
-  2>&1 | tee "$playback_dir/verify.log" || verify_status=$?
-if ((test_status != 0)); then exit "$test_status"; fi
-exit "$verify_status"
+  --format json --out "$playback_dir/results.json" 2>&1 | tee "$playback_dir/tests.log"

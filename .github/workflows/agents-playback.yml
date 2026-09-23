@@ -24,7 +24,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: conductor-oss/conductor
-          ref: feature/llm_mock_impl
+          ref: main
           path: tmp/conductor
       - uses: actions/setup-java@v4
         with:

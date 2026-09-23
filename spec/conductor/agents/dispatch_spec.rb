@@ -4,7 +4,7 @@ require 'spec_helper'
 require 'support/agent_tools'
 
 RSpec.describe Conductor::Agents::Dispatch do
-  # Poll body recorded in conductor-mocks agent/tool_happy_path
+  # Agent tool task input, including server-injected routing fields
   let(:recorded_input) do
     { '_agent_tool_name' => 'get_weather', '_agent_state' => {}, 'method' => 'get_weather',
       'city' => 'Lisbon', 'units' => 'metric' }

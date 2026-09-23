@@ -87,7 +87,7 @@ end
   - `AgentResourceApi` / `AgentClient` for `/api/agent/*`, `OrkesClients#get_agent_client`
   - `Task#runtime_metadata` (wire-only secret values), `TaskDef#runtime_metadata` (declared secret names), `TaskDef#enforce_schema`
   - `TaskResourceApi#update_task_v2`; `Worker` option `lease_extend_enabled`
-  - Replay tests against `conductor-oss/conductor-mocks` recordings (`spec/agents`, CI job `agents-replay`)
+  - Agent examples run against Conductor with shared LLM recordings and playback validation
 
 ### Changed
 

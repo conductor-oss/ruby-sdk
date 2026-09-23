@@ -8,6 +8,7 @@ export CONDUCTOR_SERVER_URL=${CONDUCTOR_SERVER_URL:-http://localhost:8080/api}
 export CONDUCTOR_AGENT_LLM_MODEL=mock/mockLLM
 export CONDUCTOR_AGENTS_PLAYBACK=true
 export CONDUCTOR_RECORDINGS_DIR="$conductor_dir/llm-recordings"
+services_script="$conductor_dir/.github/actions/start-playback-services/start-services.sh"
 export GITHUB_REPOS_URL='http://localhost:3002/users/Conductor/repos?per_page=5&sort=updated'
 mkdir -p tmp
 playback_dir=${CONDUCTOR_PLAYBACK_WORK_DIR:-$(mktemp -d "$repo_dir/tmp/agent-playback.XXXXXX")}
@@ -53,9 +54,9 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 if [[ "${CONDUCTOR_PLAYBACK_SERVICES_STARTED:-false}" == true ]]; then
-  bash .github/scripts/start-agent-services.sh "$conductor_dir" --check
+  bash "$services_script" --check
 else
-  CONDUCTOR_PLAYBACK_WORK_DIR="$playback_dir" bash .github/scripts/start-agent-services.sh "$conductor_dir"
+  CONDUCTOR_PLAYBACK_WORK_DIR="$playback_dir" bash "$services_script"
   pids+=("$(cat "$playback_dir/http.pid")" "$(cat "$playback_dir/mcp.pid")")
 fi
 

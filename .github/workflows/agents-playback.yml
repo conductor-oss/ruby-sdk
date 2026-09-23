@@ -17,9 +17,6 @@ jobs:
       CONDUCTOR_AGENT_LLM_MODEL: mock/mockLLM
       CONDUCTOR_AGENTS_PLAYBACK: 'true'
       CONDUCTOR_PLAYBACK_WORK_DIR: tmp/agent-playback
-      CONDUCTOR_SECRET_GITHUB_TOKEN: playback-test-key
-      CONDUCTOR_SECRET_HTTP_TEST_API_KEY: playback-test-key
-      CONDUCTOR_SECRET_MCP_TEST_API_KEY: playback-test-key
       GITHUB_REPOS_URL: http://localhost:3002/users/Conductor/repos?per_page=5&sort=updated
     steps:
       - uses: actions/checkout@v4
@@ -41,13 +38,8 @@ jobs:
         with:
           ruby-version: '3.3'
           bundler-cache: true
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Install MCP test service
-        run: pip install mcp-testkit==1.0.4
-      - name: Start HTTP and MCP services and verify authenticated endpoints
-        run: bash .github/scripts/start-agent-services.sh tmp/conductor
+      - name: Start HTTP and MCP services
+        uses: ./tmp/conductor/.github/actions/start-playback-services
       - name: Start fresh playback server
         id: server
         uses: ./tmp/conductor/.github/actions/start-playback

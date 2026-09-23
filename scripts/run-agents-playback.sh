@@ -13,6 +13,8 @@ mkdir -p tmp
 playback_dir=${CONDUCTOR_PLAYBACK_WORK_DIR:-$(mktemp -d "$repo_dir/tmp/agent-playback.XXXXXX")}
 mkdir -p "$playback_dir"
 playback_dir=$(cd "$playback_dir" && pwd)
+export CONDUCTOR_PLAYBACK_EXPECTED_FAILURES="$playback_dir/expected-failures.json"
+printf '[]\n' > "$CONDUCTOR_PLAYBACK_EXPECTED_FAILURES"
 verify_script="$conductor_dir/.github/actions/check-playback/check-playback.sh"
 [[ -f "$verify_script" && -d "$CONDUCTOR_RECORDINGS_DIR" ]]
 curl --fail --silent --show-error --max-time 10 "${CONDUCTOR_SERVER_URL%/api}/health" > /dev/null
@@ -25,7 +27,7 @@ if ! command -v bundle > /dev/null; then
     -v "$playback_dir:$playback_dir:z"
     -v ruby-sdk-bundle:/usr/local/bundle:z
     -e CONDUCTOR_SERVER_URL -e CONDUCTOR_AGENT_LLM_MODEL
-    -e CONDUCTOR_AGENTS_PLAYBACK -e GITHUB_REPOS_URL
+    -e CONDUCTOR_AGENTS_PLAYBACK -e GITHUB_REPOS_URL -e CONDUCTOR_PLAYBACK_EXPECTED_FAILURES
     -e CONDUCTOR_AUTH_KEY -e CONDUCTOR_AUTH_SECRET)
 fi
 run_ruby() {

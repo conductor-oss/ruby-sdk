@@ -63,6 +63,7 @@ jobs:
           path: |
             tmp/agent-playback/*.log
             tmp/agent-playback/results.json
+            tmp/agent-playback/expected-failures.json
       - name: Stop test services
         if: always()
         run: |

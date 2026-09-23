@@ -3,6 +3,7 @@
 require 'spec_helper'
 require 'conductor/agents'
 require 'stringio'
+require 'json'
 require_relative '../../../examples/agents/catalog'
 
 RSpec.describe 'Agent examples on a Conductor playback server' do
@@ -25,6 +26,11 @@ RSpec.describe 'Agent examples on a Conductor playback server' do
 
   before do
     skip 'Set CONDUCTOR_AGENTS_PLAYBACK=true and start the dedicated playback server' unless ENV['CONDUCTOR_AGENTS_PLAYBACK'] == 'true'
+  end
+
+  after do |example|
+    path = ENV.fetch('CONDUCTOR_PLAYBACK_EXPECTED_FAILURES', nil)
+    File.write(path, JSON.generate([@expected_failed_execution])) if path && @expected_failed_execution && example.exception.nil?
   end
 
   AgentExamples::EXAMPLES.each_key do |name|
@@ -55,6 +61,7 @@ RSpec.describe 'Agent examples on a Conductor playback server' do
         when '22_llm_guardrails'
           decisions = tasks.filter_map { |task| task.output_data['result'] if task.output_data['result'].is_a?(Hash) }
           expect(decisions).to include(include('guardrail_name' => 'content_safety', 'passed' => false, 'on_fail' => 'raise'))
+          @expected_failed_execution = execution.execution_id
         when '103_plan_and_compile'
           expect(tasks.count { |task| task.task_type == 'factorial' && task.status == 'COMPLETED' }).to eq(5)
           expect(tasks).to include(have_attributes(task_type: 'PLAN_AND_COMPILE', status: 'COMPLETED'))

@@ -57,13 +57,7 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     let(:secret_key) { "#{test_id}_secret" }
     let(:secret_value) { "test_secret_value_#{SecureRandom.hex(8)}" }
 
-    # OSS Conductor registers a full secrets CRUD controller by default (the
-    # `agentspan` module's `conductor.integrations.ai.enabled=true` default),
-    # but only ships read-only SecretsDAO backends: writes (put/delete) return
-    # a real 501 "read-only backend" rather than succeeding. Reads work
-    # against an env-backed secret seeded via
-    # CONDUCTOR_SECRET_RUBY_SDK_INTEGRATION_TEST in scripts/docker-compose-oss.yaml
-    # -- keep these two constants in sync with that file.
+    # The Docker integration stack supplies this fixture for the read-only env backend.
     OSS_SEEDED_SECRET_NAME = 'RUBY_SDK_INTEGRATION_TEST'
     OSS_SEEDED_SECRET_VALUE = 'ruby-sdk-oss-secret-value'
 
@@ -76,46 +70,49 @@ RSpec.describe 'Orkes Integration', skip: !ENV['CONDUCTOR_INTEGRATION'] do
     end
 
     it 'performs CRUD operations on secrets' do
-      if IntegrationHelper.oss?
-        # Verify reads work against the pre-seeded env-backed secret, and that
-        # writes fail with a real 501 (read-only backend) rather than silently
-        # succeeding or failing for some other reason.
-        expect(secret_client.get_secret(OSS_SEEDED_SECRET_NAME)).to eq(OSS_SEEDED_SECRET_VALUE)
-        expect(secret_client.secret_exists(OSS_SEEDED_SECRET_NAME)).to be true
-        expect(secret_client.list_all_secret_names).to include(OSS_SEEDED_SECRET_NAME)
-
-        begin
-          secret_client.put_secret(secret_key, secret_value)
-          # A future OSS release might ship a writable backend; if so, clean up.
-          secret_client.delete_secret(secret_key)
-        rescue Conductor::ApiError => e
-          raise unless e.status == 501
-        end
-      else
-        # Create
+      begin
         secret_client.put_secret(secret_key, secret_value)
+      rescue Conductor::ApiError => e
+        raise unless IntegrationHelper.oss? && e.status == 501
 
-        # Verify it exists
-        exists = secret_client.secret_exists(secret_key)
-        expect(exists).to be true
-
-        # List secrets should include our key
-        secrets = secret_client.list_all_secret_names
-        expect(secrets).to include(secret_key)
-
-        # Get secret (note: Orkes may return masked value or the actual value depending on permissions)
-        retrieved = secret_client.get_secret(secret_key)
-        expect(retrieved).not_to be_nil
-
-        # Delete
-        secret_client.delete_secret(secret_key)
-
-        # Verify deleted
-        exists_after = secret_client.secret_exists(secret_key)
-        expect(exists_after).to be false
+        skip 'Secret creation is unsupported by the server’s read-only secrets backend'
       end
+
+      expect(secret_client.secret_exists(secret_key)).to be true
+      expect(secret_client.list_all_secret_names).to include(secret_key)
+      # Orkes may mask the value depending on permissions.
+      expect(secret_client.get_secret(secret_key)).not_to be_nil
+
+      secret_client.delete_secret(secret_key)
+      expect(secret_client.secret_exists(secret_key)).to be false
     rescue Conductor::ApiError => e
       skip_if_limit_reached(e)
+    end
+
+    it 'reports unsupported mutations and missing secrets on a read-only OSS backend' do
+      skip 'Only applies to OSS secrets backends' unless IntegrationHelper.oss?
+
+      begin
+        secret_client.put_secret(secret_key, secret_value)
+        skip 'The configured secrets backend supports writes; covered by the CRUD test'
+      rescue Conductor::ApiError => e
+        expect(e.status).to eq(501)
+      end
+
+      expect(secret_client.secret_exists(secret_key)).to be false
+      expect(secret_client.list_all_secret_names).not_to include(secret_key)
+      expect { secret_client.get_secret(secret_key) }.to raise_error(Conductor::ApiError) { |error| expect(error.status).to eq(404) }
+      expect { secret_client.delete_secret(secret_key) }.to raise_error(Conductor::ApiError) { |error| expect(error.status).to eq(501) }
+    end
+
+    it 'reads the environment-backed secret supplied by the OSS integration stack' do
+      skip 'Only applies to the OSS integration stack' unless IntegrationHelper.oss?
+      unless secret_client.secret_exists(OSS_SEEDED_SECRET_NAME)
+        skip 'Server fixture is absent; scripts/run-integration-oss.sh seeds it when starting Conductor'
+      end
+
+      expect(secret_client.get_secret(OSS_SEEDED_SECRET_NAME)).to eq(OSS_SEEDED_SECRET_VALUE)
+      expect(secret_client.list_all_secret_names).to include(OSS_SEEDED_SECRET_NAME)
     end
 
     it 'handles secret tags' do

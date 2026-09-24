@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1]
+
+### Added
+
+- **Conductor Agents** (`require 'conductor/agents'`): define agents in Ruby and run them on a Conductor server (#29)
+  - `Agent` with instructions, model, tools, guardrails, handoffs, memory, termination conditions and prompt templates
+  - `tool def` DSL that turns a method into a worker tool with a schema derived from keyword defaults, plus factories for HTTP, OpenAPI, MCP, human, agent, media, PDF and RAG tools
+  - Regex, LLM and custom guardrails with `raise`, `retry`, `fix` and `human` failure modes
+  - Sequential, parallel, hierarchical and swarm multi-agent patterns, handoffs and human-in-the-loop approval
+  - `AgentRuntime` with streaming, status polling, secrets resolution and automatic worker registration
+  - Examples under `examples/agents/` and documentation under `docs/agents/`
+- Agent playback integration tests driven by the shared Conductor HTTP and MCP playback services (#29)
+- Integration (e2e) test suite now runs against a Conductor OSS stack on every PR and gates the Orkes cloud run (#26)
+
 ## [0.1.0]
 
 ### Added
@@ -139,4 +153,5 @@ end
 - Supports both OSS Conductor and Orkes Cloud
 - Ruby 2.6+ compatible (Ruby 3+ recommended for Ractor support)
 
+[0.1.1]: https://github.com/conductor-oss/ruby-sdk/releases/tag/v0.1.1
 [0.1.0]: https://github.com/conductor-oss/ruby-sdk/releases/tag/v0.1.0

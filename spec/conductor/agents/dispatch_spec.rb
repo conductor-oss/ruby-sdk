@@ -49,26 +49,26 @@ RSpec.describe Conductor::Agents::Dispatch do
   end
 
   it 'wraps scalar results and keeps _state_updates' do
-    scalar = Conductor::Agents::ToolDef.new(name: 's', func: ->(**) { 'plain' },
-                                            input_schema: { 'type' => 'object', 'properties' => {} })
+    scalar = Conductor::Agents::Tool.new(name: 's', func: ->(**) { 'plain' },
+                                         input_schema: { 'type' => 'object', 'properties' => {} })
     expect(described_class.run_tool_task(task_with({}), scalar).output_data).to eq('result' => 'plain')
 
-    stateful = Conductor::Agents::ToolDef.new(name: 's2', func: ->(**) { { ok: true, _state_updates: { 'n' => 1 } } },
-                                              input_schema: { 'type' => 'object', 'properties' => {} })
+    stateful = Conductor::Agents::Tool.new(name: 's2', func: ->(**) { { ok: true, _state_updates: { 'n' => 1 } } },
+                                           input_schema: { 'type' => 'object', 'properties' => {} })
     expect(described_class.run_tool_task(task_with({}), stateful).output_data).to eq('ok' => true, '_state_updates' => { 'n' => 1 })
   end
 
   it 'reports tool exceptions as retryable failures with the reason' do
-    boom = Conductor::Agents::ToolDef.new(name: 'boom', func: ->(**) { raise 'kaput' },
-                                          input_schema: { 'type' => 'object', 'properties' => {} })
+    boom = Conductor::Agents::Tool.new(name: 'boom', func: ->(**) { raise 'kaput' },
+                                       input_schema: { 'type' => 'object', 'properties' => {} })
     result = described_class.run_tool_task(task_with({}), boom, logger: Logger.new(nil))
     expect(result.status).to eq('FAILED')
     expect(result.reason_for_incompletion).to eq('RuntimeError: kaput')
   end
 
   it 'fails terminally on unserializable results' do
-    bad = Conductor::Agents::ToolDef.new(name: 'bad', func: ->(**) { { io: $stdout } },
-                                         input_schema: { 'type' => 'object', 'properties' => {} })
+    bad = Conductor::Agents::Tool.new(name: 'bad', func: ->(**) { { io: $stdout } },
+                                      input_schema: { 'type' => 'object', 'properties' => {} })
     allow(JSON).to receive(:generate).and_raise(JSON::GeneratorError, 'nope')
     result = described_class.run_tool_task(task_with({}), bad)
     expect(result.status).to eq('FAILED_WITH_TERMINAL_ERROR')
@@ -99,11 +99,11 @@ RSpec.describe Conductor::Agents::Dispatch do
   end
 
   it 'passes unknown keys only to tools that accept **kwargs' do
-    strict = Conductor::Agents::ToolDef.new(name: 'strict', func: ->(a:) { { a: a } },
-                                            input_schema: { 'type' => 'object', 'properties' => { 'a' => {} } })
+    strict = Conductor::Agents::Tool.new(name: 'strict', func: ->(a:) { { a: a } },
+                                         input_schema: { 'type' => 'object', 'properties' => { 'a' => {} } })
     expect(described_class.run_tool_task(task_with({ 'a' => 1, 'zzz' => 2 }), strict).output_data).to eq('a' => 1)
-    loose = Conductor::Agents::ToolDef.new(name: 'loose', func: ->(a:, **rest) { { a: a, rest: rest } },
-                                           input_schema: { 'type' => 'object', 'properties' => { 'a' => {} } })
+    loose = Conductor::Agents::Tool.new(name: 'loose', func: ->(a:, **rest) { { a: a, rest: rest } },
+                                        input_schema: { 'type' => 'object', 'properties' => { 'a' => {} } })
     expect(described_class.run_tool_task(task_with({ 'a' => 1, 'zzz' => 2 }), loose).output_data).to eq('a' => 1, 'rest' => { zzz: 2 })
   end
 end

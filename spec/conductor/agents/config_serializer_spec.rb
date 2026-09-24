@@ -66,7 +66,7 @@ RSpec.describe Conductor::Agents::ConfigSerializer do
 
   it 'replaces the agent in an agent_tool config with agentConfig' do
     child = a::Agent.new(name: 'child', model: model)
-    parent = a::Agent.new(name: 'parent', model: model, tools: [a::ToolDef.agent(child, optional: false)])
+    parent = a::Agent.new(name: 'parent', model: model, tools: [a::Tool.agent(child, optional: false)])
     tool = serialize(parent)['tools'].first
     expect(tool['toolType']).to eq('agent_tool')
     expect(tool['config']['agentConfig']['name']).to eq('child')
@@ -136,7 +136,7 @@ RSpec.describe Conductor::Agents::ConfigSerializer do
     memory = a::ConversationMemory.new(max_messages: 5)
     memory.add_user_message('hi')
     agent = a::Agent.new(name: 'm', model: model, memory: memory, max_tokens: 100, temperature: 0.2,
-                         metadata: { 'team' => 'x' }, prefill_tools: [a::ToolDef.new(name: 't').call(a: 1)])
+                         metadata: { 'team' => 'x' }, prefill_tools: [a::Tool.new(name: 't').call(a: 1)])
     agent.callback(:after_model) { |**_| nil }
     config = serialize(agent)
     expect(config['memory']).to eq('messages' => [{ 'role' => 'user', 'message' => 'hi' }], 'maxMessages' => 5)

@@ -33,9 +33,9 @@ RSpec.describe Conductor::Agents::Agent do
   describe '#add_tool' do
     let(:agent) { described_class.new(name: 'a', model: model) }
 
-    it 'accepts a symbol from the global registry, a ToolDef, a Tools module and an Agent' do
+    it 'accepts a symbol from the global registry, a Tool, a Tools module and an Agent' do
       agent.add_tool :current
-      agent.add_tool Conductor::Agents::ToolDef.http('fetch', 'http://x')
+      agent.add_tool Conductor::Agents::Tool.http('fetch', 'http://x')
       agent.add_tool SpecTools::Github
       agent.add_tool described_class.new(name: 'helper', model: model)
       expect(agent.tools.map(&:name)).to eq(%w[current fetch create_issue gh_cli dynamic_secret helper])

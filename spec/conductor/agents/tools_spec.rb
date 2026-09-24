@@ -9,7 +9,7 @@ RSpec.describe Conductor::Agents::Tools do
   describe 'tool def' do
     it 'names the tool after the method and humanizes the description' do
       td = weather[:current]
-      expect(td).to be_a(Conductor::Agents::ToolDef)
+      expect(td).to be_a(Conductor::Agents::Tool)
       expect(td.name).to eq('current')
       expect(td.description).to eq('Current')
       expect(td.local?).to be true
@@ -61,6 +61,27 @@ RSpec.describe Conductor::Agents::Tools do
     it 'raises for unknown methods and unknown options' do
       expect { weather.tool(:nope) }.to raise_error(Conductor::Agents::ConfigurationError, /no such method/)
       expect { weather.tool(:current, colour: 'red') }.to raise_error(Conductor::Agents::ConfigurationError, /unknown tool option/)
+    end
+
+    it 'accepts a tool name that differs from the method name' do
+      scope = Module.new do
+        extend Conductor::Agents::Tools
+        def fetch_weather(city: String) = city
+        tool :fetch_weather, name: 'get_weather'
+      end
+      expect(scope[:get_weather].name).to eq('get_weather')
+      expect(scope.tool_defs.map(&:name)).to eq(['get_weather'])
+      expect(described_class.lookup('get_weather')).to equal(scope[:get_weather])
+    end
+
+    it 'attaches guardrails given at definition time' do
+      guard = Conductor::Agents::Guardrail.new(name: 'tool_policy') { |content| content == 'safe' }
+      scope = Module.new do
+        extend Conductor::Agents::Tools
+        def guarded(city: String) = city
+      end
+      scope.tool(:guarded, guardrails: [guard])
+      expect(scope[:guarded].guardrails).to eq([guard])
     end
 
     it 'treats keywords without defaults as required untyped properties' do

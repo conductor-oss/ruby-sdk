@@ -15,7 +15,7 @@
 require_relative '../conductor'
 require_relative 'agents/errors'
 require_relative 'agents/runtime/secrets'
-require_relative 'agents/tool_def'
+require_relative 'agents/tool'
 require_relative 'agents/tools'
 require_relative 'agents/guardrail'
 require_relative 'agents/termination'

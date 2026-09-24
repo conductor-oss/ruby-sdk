@@ -34,17 +34,20 @@ module Conductor
     end
 
     # A tool call with pre-filled arguments (Agent#prefill_tools)
-    PrefillToolCall = Struct.new(:tool_name, :arguments, :tool_def, keyword_init: true) do
+    PrefillToolCall = Struct.new(:tool_name, :arguments, :tool, keyword_init: true) do
       def to_h
         { 'toolName' => tool_name, 'arguments' => arguments || {} }
       end
     end
 
-    # Definition of one tool. Same fields and defaults as the Python SDK's ToolDef.
+    # A tool an agent can call. This is the developer-facing type: the counterpart of
+    # the Java SDK's @Tool / HttpTool / McpTool builders and the Python SDK's @tool /
+    # http_tool / mcp_tool functions. The wire-level tool config the server receives is
+    # produced by ConfigSerializer and never handed to developers.
     #
     # Worker tools are created by the Tools DSL (+tool def ...+); server-side tools by
-    # the factories below (ToolDef.http, .mcp, .human, .agent, ...).
-    class ToolDef
+    # the factories below (Tool.http, .mcp, .human, .agent, ...).
+    class Tool
       RETRY_POLICIES = %w[fixed linear_backoff exponential_backoff].freeze
       RETRY_LOGIC = {
         'fixed' => 'FIXED',
@@ -109,13 +112,21 @@ module Conductor
         self
       end
 
+      # A copy of this tool guarded by +guardrails+ (replaces any existing ones)
+      # @return [Tool]
+      def with_guardrails(*guardrails)
+        copy = dup
+        copy.guardrails = guardrails.flatten
+        copy
+      end
+
       # Build a pre-filled call for Agent#prefill_tools
       def call(**args)
-        PrefillToolCall.new(tool_name: @name, arguments: args.transform_keys(&:to_s), tool_def: self)
+        PrefillToolCall.new(tool_name: @name, arguments: args.transform_keys(&:to_s), tool: self)
       end
 
       def to_s
-        "#<Conductor::Agents::ToolDef #{@name} (#{@tool_type})>"
+        "#<Conductor::Agents::Tool #{@name} (#{@tool_type})>"
       end
       alias inspect to_s
 

@@ -12,7 +12,7 @@ specialist), `:router` (a `router:` agent picks), `:swarm`, `:round_robin`,
 
 - `a.hands_off_to(b, on: 'billing')` hands off when the text appears; `on:` also
   takes a callable.
-- `ToolDef.agent(child)` calls a child and returns its answer to the parent
+- `Tool.agent(child)` calls a child and returns its answer to the parent
   instead of transferring control.
 - `plan_execute(name:, tools:, model:, planner_instructions:, fallback_instructions:, fallback_max_turns:)`
   builds a planner that writes a plan executed as a durable sub-workflow.

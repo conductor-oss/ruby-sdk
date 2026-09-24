@@ -3,7 +3,7 @@
 require 'spec_helper'
 require 'conductor/agents'
 
-RSpec.describe Conductor::Agents::ToolDef do
+RSpec.describe Conductor::Agents::Tool do
   describe '#initialize' do
     it 'applies the Python defaults' do
       td = described_class.new(name: 't')
@@ -29,6 +29,27 @@ RSpec.describe Conductor::Agents::ToolDef do
       expect(described_class.new(name: 't', func: -> {}).local?).to be true
       expect(described_class.new(name: 't', func: -> {}, tool_type: 'http').local?).to be false
       expect(described_class.new(name: 't').local?).to be false
+    end
+  end
+
+  describe '#with_guardrails' do
+    it 'returns a guarded copy and leaves the original untouched' do
+      guard = Conductor::Agents::Guardrail.new(name: 'g') { true }
+      original = described_class.new(name: 't', func: -> {})
+      guarded = original.with_guardrails(guard)
+      expect(guarded).not_to equal(original)
+      expect(guarded.guardrails).to eq([guard])
+      expect(guarded.name).to eq('t')
+      expect(guarded.local?).to be true
+      expect(original.guardrails).to eq([])
+    end
+
+    it 'replaces existing guardrails and flattens lists' do
+      old = Conductor::Agents::Guardrail.new(name: 'old') { true }
+      new1 = Conductor::Agents::Guardrail.new(name: 'new1') { true }
+      new2 = Conductor::Agents::Guardrail.new(name: 'new2') { true }
+      tool = described_class.new(name: 't', guardrails: [old])
+      expect(tool.with_guardrails([new1, new2]).guardrails).to eq([new1, new2])
     end
   end
 

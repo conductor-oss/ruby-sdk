@@ -11,7 +11,7 @@ RSpec.describe Conductor::Agents::ToolRegistry do
   let(:weather) do
     agent = a::Agent.new(name: 'weather', model: 'openai/gpt-4o-mini', instructions: 'Answer weather questions.')
     agent.add_tool :current
-    agent.add_tool a::ToolDef.http('fetch', 'http://x')
+    agent.add_tool a::Tool.http('fetch', 'http://x')
     agent
   end
 
@@ -57,7 +57,7 @@ RSpec.describe Conductor::Agents::ToolRegistry do
 
   it 'serves custom tool guardrails and function routers required by the server' do
     guard = a::Guardrail.new(name: 'tool_policy') { |content| content == 'safe' }
-    tool = a::ToolDef.new(name: 'action', func: -> { {} }, guardrails: [guard])
+    tool = a::Tool.new(name: 'action', func: -> { {} }, guardrails: [guard])
     child = a::Agent.new(name: 'child', model: 'm/x', tools: [tool])
     team = a::Agent.new(name: 'team', agents: [child], strategy: :router, router: ->(prompt) { "#{prompt}_route" })
     workers = registry.workers_for(team, required_workers: %w[tool_policy team_router_fn])

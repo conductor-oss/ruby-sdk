@@ -355,7 +355,7 @@ module GoldenAgents
       researcher = A::Agent.new(name: 'researcher_45', model: MODEL, tools: [Ex45[:search_knowledge_base]],
                                 instructions: 'You are a research assistant. Use search_knowledge_base to find ' \
                                               'information about topics. Provide concise summaries.')
-      A::Agent.new(name: 'manager_45', model: MODEL, tools: [A::ToolDef.agent(researcher), Ex45[:calculate]],
+      A::Agent.new(name: 'manager_45', model: MODEL, tools: [A::Tool.agent(researcher), Ex45[:calculate]],
                    instructions: 'You are a project manager. Use the researcher tool to gather ' \
                                  'information and the calculate tool for math. Synthesize findings.')
     },

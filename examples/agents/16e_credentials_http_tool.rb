@@ -9,7 +9,7 @@ module Example16eCredentialsHttpTool
   extend Conductor::Agents::Tools
 
   def self.build(model: ENV.fetch('CONDUCTOR_AGENT_LLM_MODEL', 'openai/gpt-4o-mini'))
-    list_repos = ToolDef.http(
+    list_repos = Tool.http(
       "list_github_repos",
       ENV.fetch('GITHUB_REPOS_URL', 'https://api.github.com/users/Conductor/repos?per_page=5&sort=updated'),
       description: "List public GitHub repositories for a user. Returns JSON array with name, url, and stars.",

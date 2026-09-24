@@ -19,7 +19,7 @@ agent.on_approval do |request|
 end
 ```
 
-`ToolDef.human` asks a person a question; `ToolDef.wait_for_message` waits for
+`Tool.human` asks a person a question; `Tool.wait_for_message` waits for
 `execution.signal(message)`. Without a handler, use `execution.approve`,
 `reject`, `signal`, or the [client](../reference/client.md). Approval calls are
 safe to repeat.

@@ -23,16 +23,20 @@ Server-side tools need no worker:
 
 | Tool | Factory |
 |---|---|
-| HTTP endpoint | `ToolDef.http(name, url, ...)` |
-| OpenAPI / Postman | `ToolDef.api(url)` |
-| MCP server | `ToolDef.mcp(url)` |
-| Human answer | `ToolDef.human(name, description:)` |
-| Wait for a message | `ToolDef.wait_for_message(name, description:)` |
-| Media, PDF, vectors | `ToolDef.image`, `.audio`, `.video`, `.pdf`, `.index`, `.search` |
-| Another agent | `ToolDef.agent(child)` or `agent.add_tool(child)` |
+| HTTP endpoint | `Tool.http(name, url, ...)` |
+| OpenAPI / Postman | `Tool.api(url)` |
+| MCP server | `Tool.mcp(url)` |
+| Human answer | `Tool.human(name, description:)` |
+| Wait for a message | `Tool.wait_for_message(name, description:)` |
+| Media, PDF, vectors | `Tool.image`, `.audio`, `.video`, `.pdf`, `.index`, `.search` |
+| Another agent | `Tool.agent(child)` or `agent.add_tool(child)` |
 
-Options on `tool` and the factories: `retry_count:`, `retry_delay_seconds:`,
-`timeout_seconds:`, `max_calls:`, `approval_required:`, `output_schema:`.
+Options on `tool`: `name:` (when the tool name differs from the method name),
+`description:`, `guardrails:`, `credentials:`, `external:`, `stateful:`,
+`retry_count:`, `retry_delay_seconds:`, `timeout_seconds:`, `max_calls:`,
+`approval_required:`, `input_schema:`, `output_schema:`. The factories take the
+subset that applies to them. `tool.with_guardrails(g)` returns a guarded copy of
+any tool.
 
 A tool stuck in `SCHEDULED` has no worker polling. `CredentialNotFoundError`
 means the secret is missing on the server.

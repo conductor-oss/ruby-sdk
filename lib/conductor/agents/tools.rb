@@ -2,7 +2,7 @@
 
 require_relative 'errors'
 require_relative 'runtime/secrets'
-require_relative 'tool_def'
+require_relative 'tool'
 require_relative 'tools/schema_builder'
 require_relative 'tools/secret_scanner'
 
@@ -19,17 +19,17 @@ module Conductor
     #   describe :get_weather, 'Get the current weather for a city.'
     #   requires_approval :get_weather
     #
-    # +tool+ receives the Symbol that +def+ returns, builds a ToolDef from the method
+    # +tool+ receives the Symbol that +def+ returns, builds a Tool from the method
     # (schema from keyword defaults, secrets from literal secret() calls) and registers it
     # both on the receiver (Weather[:get_weather], Weather.tool_defs) and in the global
     # registry that Agent#add_tool(:get_weather) consults.
     module Tools
-      TOOL_OPTIONS = %i[description input_schema output_schema approval_required timeout_seconds credentials
-                        stateful max_calls retry_count retry_delay_seconds retry_policy external].freeze
+      TOOL_OPTIONS = %i[name description input_schema output_schema approval_required timeout_seconds credentials
+                        guardrails stateful max_calls retry_count retry_delay_seconds retry_policy external].freeze
 
       # Weather[:current] on a module that `extend Conductor::Agents::Tools`
       module Lookup
-        # @return [ToolDef]
+        # @return [Tool]
         def [](name)
           fetch_tool(name)
         end
@@ -42,7 +42,7 @@ module Conductor
           base.extend(Secrets)
         end
 
-        # Global name => ToolDef registry shared by every scope that defines tools
+        # Global name => Tool registry shared by every scope that defines tools
         def registry
           @registry ||= {}
         end
@@ -56,7 +56,7 @@ module Conductor
           tool_def
         end
 
-        # @return [ToolDef, nil]
+        # @return [Tool, nil]
         def lookup(name)
           registry_mutex.synchronize { registry[name.to_s] }
         end
@@ -66,7 +66,7 @@ module Conductor
           registry_mutex.synchronize { registry.clear }
         end
 
-        # Build a ToolDef from a bound Method
+        # Build a Tool from a bound Method
         # @param method [Method]
         # @param name [String, nil] tool name override
         def build(method, name: nil, **options)
@@ -77,7 +77,7 @@ module Conductor
           input_schema = options.fetch(:input_schema) { SchemaBuilder.input_schema(method) }
           credentials = SecretScanner.scan(method)
 
-          ToolDef.new(
+          Tool.new(
             name: tool_name,
             description: options.fetch(:description) { humanize(method.name) },
             input_schema: input_schema,
@@ -86,6 +86,7 @@ module Conductor
             approval_required: options.fetch(:approval_required, false),
             timeout_seconds: options[:timeout_seconds],
             credentials: credentials + Array(options[:credentials]),
+            guardrails: Array(options[:guardrails]),
             stateful: options.fetch(:stateful, false),
             max_calls: options[:max_calls],
             retry_count: options.fetch(:retry_count, 2),
@@ -105,12 +106,14 @@ module Conductor
 
       # Mark a method as a tool
       # @param name [Symbol, String, Method] method name (what +def+ returns) or a Method
-      # @param options [Hash] ToolDef overrides: description:, output_schema:, approval_required:,
-      #   timeout_seconds:, credentials:, stateful:, max_calls:, retry_count:, retry_delay_seconds:, retry_policy:
-      # @return [ToolDef]
+      # @param options [Hash] Tool overrides: name: (tool name when it differs from the method name),
+      #   description:, output_schema:, approval_required:, timeout_seconds:, credentials:, guardrails:,
+      #   stateful:, max_calls:, retry_count:, retry_delay_seconds:, retry_policy:, external:
+      # @return [Tool]
       def tool(name, **options)
         method = name.is_a?(Method) ? name : resolve_tool_method(name.to_sym)
-        tool_def = Tools.build(method, name: name.is_a?(Method) ? name.name : name, **options)
+        tool_name = options.delete(:name) || (name.is_a?(Method) ? name.name : name)
+        tool_def = Tools.build(method, name: tool_name, **options)
         tool_registry[tool_def.name] = tool_def
         Tools.register(tool_def)
       end
@@ -131,7 +134,7 @@ module Conductor
       end
 
       # Every tool defined in this scope, in definition order
-      # @return [Array<ToolDef>]
+      # @return [Array<Tool>]
       def tool_defs
         tool_registry.values
       end

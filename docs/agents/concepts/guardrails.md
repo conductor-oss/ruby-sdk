@@ -19,6 +19,6 @@ agent.redact(%w[password token])   # shortcut for a blocking regex guardrail
 Retry only when a new model response could plausibly pass.
 
 Use `RegexGuardrail` for format checks, `LlmGuardrail` for policy, and a block
-only when the rule needs application state. Put a guardrail on a `ToolDef`
+only when the rule needs application state. Put a guardrail on a `Tool`
 (`guardrails:`) when it protects one side effect. Don't send secrets to an LLM
 guardrail. Decisions show up in the execution history.

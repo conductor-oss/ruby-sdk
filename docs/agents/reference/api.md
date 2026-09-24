@@ -5,7 +5,7 @@ Everything lives under `Conductor::Agents` after `require 'conductor/agents'`.
 | Need | Ruby | Guide |
 |---|---|---|
 | Define an agent | `Agent` | [agents](../concepts/agents.md) |
-| Tools | `tool def`, `ToolDef.*` | [tools](../concepts/tools.md) |
+| Tools | `tool def`, `Tool.*` | [tools](../concepts/tools.md) |
 | Run | `AgentRuntime`, `Conductor::Agents.runtime` | [runtime](runtime.md) |
 | Control a run | `Execution`, `ApprovalRequest`, `Client::AgentClient` | [client](client.md) |
 | Safety | `Guardrail`, `RegexGuardrail`, `LlmGuardrail`, `Termination::*` | [guardrails](../concepts/guardrails.md) |

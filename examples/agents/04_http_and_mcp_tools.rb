@@ -14,7 +14,7 @@ module Example04HttpAndMcpTools
   tool :format_report, description: "Format a title and body into a structured report."
 
   def self.build(model: ENV.fetch('CONDUCTOR_AGENT_LLM_MODEL', 'openai/gpt-4o-mini'))
-    reverse_api = ToolDef.http(
+    reverse_api = Tool.http(
       "reverse_string",
       "http://localhost:3001/api/string/reverse",
       description: "Reverse a string using the HTTP API",
@@ -23,7 +23,7 @@ module Example04HttpAndMcpTools
       credentials: ["HTTP_TEST_API_KEY"],
       input_schema: { "type" => "object", "properties" => { "text" => { "type" => "string", "description" => "Text to reverse" } }, "required" => ["text"] }
     )
-    mcp_test_tools = ToolDef.mcp(
+    mcp_test_tools = Tool.mcp(
       "http://localhost:3001/mcp",
       name: "mcp_test_tools",
       description: "Deterministic test tools via MCP — math, string, collection, encoding, hash, datetime, validation, and conversion operations.",

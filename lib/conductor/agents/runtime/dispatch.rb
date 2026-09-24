@@ -26,7 +26,7 @@ module Conductor
       module_function
 
       # @param task [Http::Models::Task]
-      # @param tool_def [ToolDef]
+      # @param tool_def [Tool]
       # @return [Http::Models::TaskResult]
       def run_tool_task(task, tool_def, logger: nil)
         result = base_result(task)

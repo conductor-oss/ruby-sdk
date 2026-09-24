@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'errors'
-require_relative 'tool_def'
+require_relative 'tool'
 require_relative 'tools'
 require_relative 'guardrail'
 require_relative 'termination'
@@ -122,8 +122,8 @@ module Conductor
       # ── Tools ─────────────────────────────────────────────────────────
 
       # Give the agent a tool.
-      # @param tool [Symbol, String, ToolDef, Module, Class, Agent] a tool name defined with
-      #   `tool def`, a ToolDef, a module that `extend Conductor::Agents::Tools`, or another
+      # @param tool [Symbol, String, Tool, Module, Class, Agent] a tool name defined with
+      #   `tool def`, a Tool, a module that `extend Conductor::Agents::Tools`, or another
       #   Agent (wrapped as an agent tool)
       # @param credentials [Array<String>, nil] secret names when the scanner cannot see them
       # @return [self]
@@ -143,7 +143,7 @@ module Conductor
         self
       end
 
-      # @return [ToolDef, nil]
+      # @return [Tool, nil]
       def tool(name)
         @tools.find { |t| t.name == name.to_s }
       end
@@ -307,10 +307,10 @@ module Conductor
 
       def resolve_tool_defs(tool)
         case tool
-        when ToolDef then [tool]
+        when Tool then [tool]
         when Symbol, String
           [Tools.lookup(tool) || raise(ConfigurationError, "no tool named #{tool.inspect}; define it with `tool def #{tool}(...)` first")]
-        when Agent then [ToolDef.agent(tool)]
+        when Agent then [Tool.agent(tool)]
         when Module
           raise ConfigurationError, "#{tool} has no tools; use `extend Conductor::Agents::Tools` and `tool def ...`" unless tool.respond_to?(:tool_defs)
 

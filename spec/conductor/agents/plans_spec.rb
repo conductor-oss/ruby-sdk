@@ -4,7 +4,7 @@ require 'spec_helper'
 require 'conductor/agents'
 
 RSpec.describe Conductor::Agents::Plans do
-  let(:tool) { Conductor::Agents::ToolDef.new(name: 'factorial', func: ->(n:) { (1..n).reduce(1, :*) }) }
+  let(:tool) { Conductor::Agents::Tool.new(name: 'factorial', func: ->(n:) { (1..n).reduce(1, :*) }) }
 
   it 'serializes named slots and makes recovery tools discoverable to the worker runtime' do
     agent = Conductor::Agents.plan_execute(name: 'math', tools: [tool], model: 'mock/mockLLM',

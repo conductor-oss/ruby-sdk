@@ -1,0 +1,151 @@
+{
+  "external": false,
+  "fallback": {
+    "external": false,
+    "instructions": "The plan failed. Use the available tools to recover.",
+    "maxTurns": 25,
+    "model": "anthropic/claude-sonnet-4-6",
+    "name": "plan_and_compile_demo_fallback",
+    "timeoutSeconds": 0,
+    "tools": [
+      {
+        "description": "Compute n! and return it as a string.\n\nArgs:\n    n: Non-negative integer. Capped at 20 to keep things sane.",
+        "inputSchema": {
+          "properties": {
+            "n": {
+              "type": "integer"
+            }
+          },
+          "required": [
+            "n"
+          ],
+          "type": "object"
+        },
+        "name": "factorial",
+        "outputSchema": {
+          "type": "string"
+        },
+        "toolType": "worker"
+      },
+      {
+        "description": "Persist a short summary string. Returns it back for the validator.",
+        "inputSchema": {
+          "properties": {
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text"
+          ],
+          "type": "object"
+        },
+        "name": "write_summary",
+        "outputSchema": {
+          "type": "string"
+        },
+        "toolType": "worker"
+      },
+      {
+        "description": "Return JSON ``{passed, length, min_chars}`` for the validator.\n\nArgs:\n    text: The summary to check.\n    min_chars: Minimum acceptable length in characters.",
+        "inputSchema": {
+          "properties": {
+            "min_chars": {
+              "type": "integer"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "text",
+            "min_chars"
+          ],
+          "type": "object"
+        },
+        "name": "check_summary",
+        "outputSchema": {
+          "type": "string"
+        },
+        "toolType": "worker"
+      }
+    ]
+  },
+  "fallbackMaxTurns": 4,
+  "maxTurns": 25,
+  "model": "anthropic/claude-sonnet-4-6",
+  "name": "plan_and_compile_demo",
+  "planner": {
+    "external": false,
+    "instructions": "You are a math-explainer planner. Plan a workflow that:\n\n1. Computes factorials of 1, 2, 3, 4, 5 in PARALLEL using ``factorial`` (static args).\n2. Writes a short prose summary about factorial growth using ``write_summary``\n   (use a ``generate`` block \u2014 the LLM produces the ``text`` arg at run time).\n3. Validates the summary is at least 30 characters via ``check_summary``,\n   with ``success_condition: \"$.passed === true\"``.\n",
+    "maxTurns": 25,
+    "model": "anthropic/claude-sonnet-4-6",
+    "name": "plan_and_compile_demo_planner",
+    "timeoutSeconds": 0
+  },
+  "strategy": "plan_execute",
+  "timeoutSeconds": 0,
+  "tools": [
+    {
+      "description": "Compute n! and return it as a string.\n\nArgs:\n    n: Non-negative integer. Capped at 20 to keep things sane.",
+      "inputSchema": {
+        "properties": {
+          "n": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "n"
+        ],
+        "type": "object"
+      },
+      "name": "factorial",
+      "outputSchema": {
+        "type": "string"
+      },
+      "toolType": "worker"
+    },
+    {
+      "description": "Persist a short summary string. Returns it back for the validator.",
+      "inputSchema": {
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "type": "object"
+      },
+      "name": "write_summary",
+      "outputSchema": {
+        "type": "string"
+      },
+      "toolType": "worker"
+    },
+    {
+      "description": "Return JSON ``{passed, length, min_chars}`` for the validator.\n\nArgs:\n    text: The summary to check.\n    min_chars: Minimum acceptable length in characters.",
+      "inputSchema": {
+        "properties": {
+          "min_chars": {
+            "type": "integer"
+          },
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "min_chars"
+        ],
+        "type": "object"
+      },
+      "name": "check_summary",
+      "outputSchema": {
+        "type": "string"
+      },
+      "toolType": "worker"
+    }
+  ]
+}

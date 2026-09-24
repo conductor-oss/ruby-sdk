@@ -1,0 +1,72 @@
+[
+  {
+    "external": false,
+    "instructions": "You help users fetch and process data. Use the appropriate tool for each request.",
+    "maxTurns": 25,
+    "model": "openai/gpt-4o-mini",
+    "name": "retry_config_demo",
+    "timeoutSeconds": 0,
+    "tools": [
+      {
+        "description": "Call an unreliable external API that may need aggressive retries.",
+        "inputSchema": {
+          "properties": {
+            "query": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "query"
+          ],
+          "type": "object"
+        },
+        "name": "call_external_api",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      },
+      {
+        "description": "Run a database query with fixed-interval retries for transient connection issues.",
+        "inputSchema": {
+          "properties": {
+            "sql": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "sql"
+          ],
+          "type": "object"
+        },
+        "name": "query_database",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      },
+      {
+        "description": "Process data locally \u2014 light retries with linear backoff.",
+        "inputSchema": {
+          "properties": {
+            "data": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "data"
+          ],
+          "type": "object"
+        },
+        "name": "process_data",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      }
+    ]
+  }
+]

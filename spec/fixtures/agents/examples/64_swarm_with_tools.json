@@ -1,0 +1,85 @@
+[
+  {
+    "agents": [
+      {
+        "external": false,
+        "instructions": "You are a billing specialist. Use the check_balance tool to look up account balances. Include the balance amount in your response.",
+        "maxTurns": 25,
+        "model": "openai/gpt-4o-mini",
+        "name": "billing_specialist",
+        "timeoutSeconds": 0,
+        "tools": [
+          {
+            "description": "Check the balance of a bank account.",
+            "inputSchema": {
+              "properties": {
+                "account_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "account_id"
+              ],
+              "type": "object"
+            },
+            "name": "check_balance",
+            "outputSchema": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "toolType": "worker"
+          }
+        ]
+      },
+      {
+        "external": false,
+        "instructions": "You are an order specialist. Use the lookup_order tool to check order status. Include the shipping status and ETA in your response.",
+        "maxTurns": 25,
+        "model": "openai/gpt-4o-mini",
+        "name": "order_specialist",
+        "timeoutSeconds": 0,
+        "tools": [
+          {
+            "description": "Look up the status of an order.",
+            "inputSchema": {
+              "properties": {
+                "order_id": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "order_id"
+              ],
+              "type": "object"
+            },
+            "name": "lookup_order",
+            "outputSchema": {
+              "additionalProperties": {},
+              "type": "object"
+            },
+            "toolType": "worker"
+          }
+        ]
+      }
+    ],
+    "external": false,
+    "handoffs": [
+      {
+        "target": "billing_specialist",
+        "text": "billing",
+        "type": "on_text_mention"
+      },
+      {
+        "target": "order_specialist",
+        "text": "order",
+        "type": "on_text_mention"
+      }
+    ],
+    "instructions": "You are front-line customer support. Triage customer requests. Transfer to billing_specialist for account/payment questions, order_specialist for shipping/order questions.",
+    "maxTurns": 3,
+    "model": "openai/gpt-4o-mini",
+    "name": "support",
+    "strategy": "swarm",
+    "timeoutSeconds": 0
+  }
+]

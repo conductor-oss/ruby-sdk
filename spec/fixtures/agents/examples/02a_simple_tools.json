@@ -1,0 +1,52 @@
+[
+  {
+    "external": false,
+    "instructions": "You are a helpful assistant. Use tools to answer questions.",
+    "maxTurns": 25,
+    "model": "openai/gpt-4o-mini",
+    "name": "weather_stock_agent",
+    "timeoutSeconds": 0,
+    "tools": [
+      {
+        "description": "Get the current weather for a city.",
+        "inputSchema": {
+          "properties": {
+            "city": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "city"
+          ],
+          "type": "object"
+        },
+        "name": "get_weather",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      },
+      {
+        "description": "Get the current stock price for a ticker symbol.",
+        "inputSchema": {
+          "properties": {
+            "symbol": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "symbol"
+          ],
+          "type": "object"
+        },
+        "name": "get_stock_price",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      }
+    ]
+  }
+]

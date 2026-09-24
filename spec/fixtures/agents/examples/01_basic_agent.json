@@ -1,0 +1,10 @@
+[
+  {
+    "external": false,
+    "instructions": "You are a friendly assistant. Keep responses brief.",
+    "maxTurns": 25,
+    "model": "openai/gpt-4o-mini",
+    "name": "greeter",
+    "timeoutSeconds": 0
+  }
+]

@@ -1,0 +1,47 @@
+[
+  {
+    "agents": [
+      {
+        "external": false,
+        "instructions": "You provide quick, 1-sentence assessments. Be brief and direct.",
+        "maxTurns": 25,
+        "model": "openai/gpt-4o-mini",
+        "name": "quick_check",
+        "timeoutSeconds": 0
+      },
+      {
+        "agents": [
+          {
+            "external": false,
+            "instructions": "You are a market analyst. Analyze the market opportunity: size, growth rate, key players. 3-4 bullet points.",
+            "maxTurns": 25,
+            "model": "openai/gpt-4o-mini",
+            "name": "market_analyst_66",
+            "timeoutSeconds": 0
+          },
+          {
+            "external": false,
+            "instructions": "You are a risk analyst. Identify the top 3 risks: regulatory, technical, and competitive. 3-4 bullet points.",
+            "maxTurns": 25,
+            "model": "openai/gpt-4o-mini",
+            "name": "risk_analyst_66",
+            "timeoutSeconds": 0
+          }
+        ],
+        "external": false,
+        "maxTurns": 25,
+        "model": "openai/gpt-4o-mini",
+        "name": "deep_analysis",
+        "strategy": "parallel",
+        "timeoutSeconds": 0
+      }
+    ],
+    "external": false,
+    "instructions": "You are a business strategist. Route requests to the right team:\n- quick_check for simple yes/no questions or quick assessments\n- deep_analysis for comprehensive analysis requiring multiple perspectives",
+    "maxTurns": 25,
+    "model": "openai/gpt-4o-mini",
+    "name": "coordinator_66",
+    "strategy": "handoff",
+    "timeoutSeconds": 0
+  }
+]

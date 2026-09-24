@@ -37,7 +37,9 @@ module Conductor
           execution_name_space: 'String',
           owner_email: 'String',
           poll_timeout_seconds: 'Integer',
-          backoff_scale_factor: 'Integer'
+          backoff_scale_factor: 'Integer',
+          enforce_schema: 'Boolean',
+          runtime_metadata: 'Array<String>'
         }.freeze
 
         ATTRIBUTE_MAP = {
@@ -58,7 +60,9 @@ module Conductor
           execution_name_space: :executionNameSpace,
           owner_email: :ownerEmail,
           poll_timeout_seconds: :pollTimeoutSeconds,
-          backoff_scale_factor: :backoffScaleFactor
+          backoff_scale_factor: :backoffScaleFactor,
+          enforce_schema: :enforceSchema,
+          runtime_metadata: :runtimeMetadata
         }.freeze
 
         attr_accessor :name, :description, :retry_count, :timeout_seconds,
@@ -67,7 +71,12 @@ module Conductor
                       :concurrent_exec_limit, :rate_limit_per_frequency,
                       :rate_limit_frequency_in_seconds, :isolation_group_id,
                       :execution_name_space, :owner_email, :poll_timeout_seconds,
-                      :backoff_scale_factor
+                      :backoff_scale_factor, :enforce_schema
+
+        # Names of secrets the server must resolve and attach to every task of this
+        # type (delivered as Task#runtime_metadata). Requires conductor-oss >= 3.32.0-rc.8.
+        # @return [Array<String>]
+        attr_accessor :runtime_metadata
 
         def initialize(params = {})
           @name = params[:name]
@@ -88,6 +97,8 @@ module Conductor
           @owner_email = params[:owner_email]
           @poll_timeout_seconds = params[:poll_timeout_seconds]
           @backoff_scale_factor = params[:backoff_scale_factor] || 1
+          @enforce_schema = params.fetch(:enforce_schema, false)
+          @runtime_metadata = params[:runtime_metadata] || []
         end
       end
     end

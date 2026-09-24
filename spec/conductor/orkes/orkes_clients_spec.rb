@@ -81,6 +81,12 @@ RSpec.describe Conductor::Orkes::OrkesClients do
     end
   end
 
+  describe '#get_agent_client' do
+    it 'returns an AgentClient' do
+      expect(clients.get_agent_client).to be_a(Conductor::Client::AgentClient)
+    end
+  end
+
   describe '#get_schema_client' do
     it 'returns a SchemaClient' do
       result = clients.get_schema_client

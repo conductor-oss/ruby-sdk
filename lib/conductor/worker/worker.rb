@@ -22,7 +22,7 @@ module Conductor
       attr_accessor :poll_interval, :thread_count, :domain, :worker_id,
                     :poll_timeout, :register_task_def, :overwrite_task_def,
                     :strict_schema, :paused, :isolation, :executor,
-                    :task_def_template
+                    :task_def_template, :lease_extend_enabled
 
       # Default configuration values
       DEFAULTS = {
@@ -36,7 +36,8 @@ module Conductor
         strict_schema: false,
         paused: false,
         isolation: :thread,
-        executor: :thread_pool
+        executor: :thread_pool,
+        lease_extend_enabled: false
       }.freeze
 
       # Initialize a worker

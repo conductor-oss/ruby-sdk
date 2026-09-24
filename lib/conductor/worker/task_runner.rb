@@ -10,6 +10,7 @@ require_relative '../exceptions'
 require_relative 'task_context'
 require_relative 'task_in_progress'
 require_relative 'worker_config'
+require_relative 'lease_renewer'
 require_relative 'events/task_runner_events'
 require_relative 'events/sync_event_dispatcher'
 require_relative 'events/listener_registry'
@@ -43,6 +44,7 @@ module Conductor
 
         # Create task client for API communication
         @task_client = Client::TaskClient.new(@configuration)
+        @lease_renewer = LeaseRenewer.new(task_client: @task_client, logger: @logger)
 
         # Resolve worker configuration
         resolved_config = WorkerConfig.resolve(
@@ -68,6 +70,9 @@ module Conductor
         @poll_count = Concurrent::AtomicFixnum.new(0)
         @shutdown = Concurrent::AtomicBoolean.new(false)
         @mutex = Mutex.new
+        # Prefer POST /tasks/update-v2 (lease extension, next-task return); fall back
+        # to POST /tasks once if the server does not serve it (404/405).
+        @use_update_v2 = Concurrent::AtomicBoolean.new(true)
       end
 
       # Main polling loop (runs until shutdown)
@@ -176,6 +181,7 @@ module Conductor
         @worker_id = config[:worker_id]
         @domain = config[:domain]
         @poll_timeout = config[:poll_timeout]
+        @lease_extend_enabled = config[:lease_extend_enabled]
       end
 
       # Cleanup completed task futures
@@ -305,16 +311,21 @@ module Conductor
       # Execute a task and update the result
       # @param task [Hash] Task data from API
       def execute_and_update(task)
-        task_result = execute_task(task)
+        while task
+          task_result = execute_task(task)
 
-        # Skip update for TaskInProgress (task stays in IN_PROGRESS state)
-        return if task_result.nil?
+          # Skip update for TaskInProgress (task stays in IN_PROGRESS state)
+          return if task_result.nil?
 
-        # Don't update if result is IN_PROGRESS (will be polled again)
-        return if task_result.status == Http::Models::TaskResultStatus::IN_PROGRESS &&
-                  task_result.callback_after_seconds&.positive?
+          # Don't update if result is IN_PROGRESS (will be polled again)
+          return if task_result.status == Http::Models::TaskResultStatus::IN_PROGRESS &&
+                    task_result.callback_after_seconds&.positive?
 
-        update_task_with_retry(task_result)
+          # update-v2 has already claimed the returned task. Reuse this executor slot
+          # rather than dropping it or exceeding the worker's concurrency limit.
+          response = update_task_with_retry(task_result)
+          task = response.is_a?(Http::Models::Task) ? response : nil
+        end
       end
 
       # Execute a task
@@ -345,7 +356,11 @@ module Conductor
 
         begin
           # Execute worker
-          task_result = @worker.execute(task_obj)
+          task_result = if @lease_extend_enabled
+                          @lease_renewer.during(task_obj, worker_id: @worker_id) { @worker.execute(task_obj) }
+                        else
+                          @worker.execute(task_obj)
+                        end
 
           duration_ms = (Time.now - start_time) * 1000
 
@@ -458,11 +473,11 @@ module Conductor
 
           start_time = Time.now
           begin
-            @task_client.update_task(task_result)
+            next_task = send_task_update(task_result)
             duration_ms = (Time.now - start_time) * 1000
 
             publish_task_update_completed(task_result, duration_ms)
-            return # Success
+            return next_task
           rescue StandardError => e
             duration_ms = (Time.now - start_time) * 1000
             @logger.error("Task update failed (attempt #{attempt + 1}/#{RETRY_BACKOFFS.size}): #{e.message}")
@@ -473,6 +488,24 @@ module Conductor
               publish_task_update_failure(task_result, e, duration_ms)
             end
           end
+        end
+        nil
+      end
+
+      # Send the task result to the server, preferring the v2 endpoint
+      # @param task_result [TaskResult]
+      def send_task_update(task_result)
+        return @task_client.update_task(task_result) unless @use_update_v2.true? && running?
+
+        task_result.extend_lease = false if task_result.extend_lease.nil?
+        begin
+          @task_client.update_task_v2(task_result)
+        rescue ApiError => e
+          raise unless [404, 405].include?(e.status)
+
+          @logger.info('Server does not support /tasks/update-v2, falling back to /tasks')
+          @use_update_v2.make_false
+          @task_client.update_task(task_result)
         end
       end
 

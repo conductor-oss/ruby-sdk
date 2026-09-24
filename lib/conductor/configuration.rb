@@ -5,12 +5,43 @@ require_relative 'configuration/authentication_settings'
 module Conductor
   # Configuration for Conductor client
   class Configuration
-    # Class-level auth token cache (shared across instances, like Python SDK)
+    # Legacy process-wide token cache. Tokens are now cached per Configuration
+    # instance so that two configurations (different servers or credentials) in
+    # one process never share a token. The class-level accessors remain for one
+    # release as a compatibility shim and warn once when used.
     @auth_token = nil
     @token_update_time = 0
 
     class << self
-      attr_accessor :auth_token, :token_update_time
+      def auth_token
+        legacy_token_cache_warning
+        @auth_token
+      end
+
+      def auth_token=(token)
+        legacy_token_cache_warning
+        @auth_token = token
+      end
+
+      def token_update_time
+        legacy_token_cache_warning
+        @token_update_time
+      end
+
+      def token_update_time=(time)
+        legacy_token_cache_warning
+        @token_update_time = time
+      end
+
+      private
+
+      def legacy_token_cache_warning
+        return if @legacy_token_cache_warned
+
+        @legacy_token_cache_warned = true
+        warn '[Conductor] Configuration.auth_token / token_update_time are deprecated: ' \
+             'the auth token is cached per Configuration instance.'
+      end
     end
 
     attr_accessor :base_url, :server_api_url, :debug, :authentication_settings,
@@ -29,6 +60,8 @@ module Conductor
       @key_file = nil
       @proxy = nil
       @auth_token_ttl_min = auth_token_ttl_min
+      @auth_token = nil
+      @token_update_time = 0
 
       # Resolve server URL
       @host = resolve_host(server_api_url, base_url)
@@ -50,18 +83,18 @@ module Conductor
       @authentication_settings = nil
     end
 
+    # Cache an auth token on this configuration instance
+    # @param token [String] JWT returned by the /token endpoint
     def update_token(token)
-      self.class.auth_token = token
-      self.class.token_update_time = (Time.now.to_f * 1000).to_i
+      @auth_token = token
+      @token_update_time = (Time.now.to_f * 1000).to_i
     end
 
-    def auth_token
-      self.class.auth_token
-    end
+    # @return [String, nil] The cached auth token for this configuration
+    attr_reader :auth_token
 
-    def token_update_time
-      self.class.token_update_time
-    end
+    # @return [Integer] Epoch milliseconds of the last token update (0 when never set)
+    attr_reader :token_update_time
 
     # Alias for server URL (used in some places)
     def server_url

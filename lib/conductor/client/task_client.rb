@@ -45,6 +45,13 @@ module Conductor
         @task_api.update_task(task_result)
       end
 
+      # Update task status using the v2 endpoint (supports lease extension)
+      # @param [TaskResult] task_result Task result
+      # @return [Task, nil] Next task for this worker, if any
+      def update_task_v2(task_result)
+        @task_api.update_task_v2(task_result)
+      end
+
       # Get task details
       # @param [String] task_id Task ID
       # @return [Task] Task object

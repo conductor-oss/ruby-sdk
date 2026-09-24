@@ -210,7 +210,7 @@ module Conductor
         raise unless e.status == 404
 
         # Task def doesn't exist, create it
-        @metadata_client.register_task_def([task_def])
+        @metadata_client.register_task_def(task_def)
       end
 
       # Register task def only if it doesn't exist
@@ -222,7 +222,7 @@ module Conductor
         raise unless e.status == 404
 
         # Task def doesn't exist, create it
-        @metadata_client.register_task_def([task_def])
+        @metadata_client.register_task_def(task_def)
       end
     end
 

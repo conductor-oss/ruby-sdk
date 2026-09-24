@@ -1,0 +1,77 @@
+[
+  {
+    "external": false,
+    "instructions": "You are an operations assistant. Work through the request one tool call at a time, in this order:\n1. Check the service with check_service.\n2. If it is unhealthy, restart it with restart_service.\n3. Last, if the user asked you to clear or delete data, call delete_service_data.\nA human approves the deletion, not you \u2014 delete_service_data pauses for that approval by itself, so never ask for approval in your own reply.",
+    "maxTurns": 25,
+    "model": "openai/gpt-4o-mini",
+    "name": "ops_agent",
+    "timeoutSeconds": 0,
+    "tools": [
+      {
+        "description": "Check the health of a service.",
+        "inputSchema": {
+          "properties": {
+            "service_name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "service_name"
+          ],
+          "type": "object"
+        },
+        "name": "check_service",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      },
+      {
+        "description": "Restart a service. Safe operation, no approval needed.",
+        "inputSchema": {
+          "properties": {
+            "service_name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "service_name"
+          ],
+          "type": "object"
+        },
+        "name": "restart_service",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      },
+      {
+        "approvalRequired": true,
+        "description": "Delete service data. Destructive \u2014 requires human approval.",
+        "inputSchema": {
+          "properties": {
+            "data_type": {
+              "type": "string"
+            },
+            "service_name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "service_name",
+            "data_type"
+          ],
+          "type": "object"
+        },
+        "name": "delete_service_data",
+        "outputSchema": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "toolType": "worker"
+      }
+    ]
+  }
+]

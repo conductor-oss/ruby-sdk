@@ -113,35 +113,4 @@ RSpec.describe Conductor::Agents::Tools do
       expect(weather.tool_defs.map(&:name)).to eq(%w[current forecast])
     end
   end
-
-  describe 'RubyLLM adapter' do
-    before do
-      stub_const('RubyLLM', SpecTools::FakeRubyLLM)
-      stub_const('WeatherLookup', Class.new(SpecTools::FakeRubyLLM::Tool) do
-        desc 'Gets current weather for a location'
-        param :latitude, type: :number, desc: 'Latitude'
-        param :longitude, type: :number, desc: 'Longitude'
-        param :units, type: :string, required: false
-
-        def execute(latitude:, longitude:, units: 'metric')
-          { lat: latitude, lon: longitude, units: units }
-        end
-      end)
-    end
-
-    it 'converts the class to a ToolDef and executes an instance' do
-      td = Conductor::Agents::Tools::RubyLlmAdapter.to_tool_def(WeatherLookup)
-      expect(td.name).to eq('weather_lookup')
-      expect(td.description).to eq('Gets current weather for a location')
-      expect(td.input_schema['required']).to eq(%w[latitude longitude])
-      expect(td.input_schema['properties']['latitude']).to eq('type' => 'number', 'description' => 'Latitude')
-      expect(td.func.call(latitude: 1.0, longitude: 2.0)).to eq(lat: 1.0, lon: 2.0, units: 'metric')
-    end
-
-    it 'is picked up by Agent#add_tool' do
-      agent = Conductor::Agents::Agent.new(name: 'a', model: 'openai/gpt-4o')
-      agent.add_tool WeatherLookup
-      expect(agent.tool('weather_lookup')).not_to be_nil
-    end
-  end
 end

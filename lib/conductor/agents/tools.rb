@@ -5,7 +5,6 @@ require_relative 'runtime/secrets'
 require_relative 'tool_def'
 require_relative 'tools/schema_builder'
 require_relative 'tools/secret_scanner'
-require_relative 'tools/ruby_llm_adapter'
 
 module Conductor
   module Agents

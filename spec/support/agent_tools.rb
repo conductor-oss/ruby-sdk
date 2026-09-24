@@ -56,40 +56,4 @@ module SpecTools
       [city, units]
     end
   end
-
-  # A stand-in for RubyLLM::Tool so the adapter can be exercised without the gem
-  module FakeRubyLLM
-    class Tool
-      class Param
-        attr_reader :type, :description, :required
-
-        def initialize(type:, description:, required:)
-          @type = type
-          @description = description
-          @required = required
-        end
-      end
-
-      class << self
-        def desc(text = nil)
-          @description = text if text
-          @description
-        end
-
-        attr_reader :description
-
-        def param(name, type: :string, desc: nil, required: true)
-          (@parameters ||= {})[name] = Param.new(type: type, description: desc, required: required)
-        end
-
-        def parameters
-          @parameters || {}
-        end
-
-        def name
-          super.split('::').last.gsub(/([a-z\d])([A-Z])/, '\1_\2').downcase
-        end
-      end
-    end
-  end
 end

@@ -5,25 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-
-- Port all 19 requested Python agent examples, with integration tests that execute the examples directly and CI using Conductor OSS playback plus the shared recording verification action.
-- Add plan-and-compile agents with planner/fallback configuration, external worker declarations, explicit tool input schemas, SSE event callbacks, and structured approval responses.
-- Compare every example's configuration to Python-generated fixtures and validate the agent schema.
-
-### Fixed
-
-- Execute tasks claimed by `update-v2` within the existing worker slot instead of leaving them in progress.
-- Register individual task definitions without nesting the metadata request array.
-- Inherit tool credentials through agent trees and register callable routers, tool guardrails, and hoisted conditional handoffs.
-
 ## [0.1.0]
 
 ### Added
 
-- Canonical (harmonized) metrics as the sole metric surface
+- Canonical (harmonized) metrics as the sole metric surface -- [details](docs/METRICS_AND_INTERCEPTORS.md#detailed-technical-notes----unreleased)
 - Bounded `uri` label on `http_api_client_request_seconds`: uses path templates (e.g. `/workflow/{workflowId}`) instead of fully-resolved paths, preventing metric cardinality explosion
 - `WorkflowStatusProbe` in harness: opt-in probe (via `HARNESS_PROBE_RATE_PER_SEC`) that exercises UUID-bearing endpoints to validate template URI metrics
 
@@ -50,11 +36,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Task classes: `SimpleTask`, `SwitchTask`, `ForkTask`, `JoinTask`, `DoWhileTask`, `HttpTask`, `SubWorkflowTask`, `WaitTask`, `TerminateTask`, `SetVariableTask`, `DynamicForkTask`, `JavascriptTask`, `JsonJqTask`, `EventTask`, `HttpPollTask`, `DynamicTask`, `HumanTask`, `StartWorkflowTask`, `KafkaPublishTask`, `WaitForWebhookTask`
   - LLM task classes: `LlmChatCompleteTask`, `LlmTextCompleteTask`, `LlmGenerateEmbeddingsTask`, `LlmIndexTextTask`, `LlmIndexDocumentTask`, `LlmSearchIndexTask`, `LlmQueryEmbeddingsTask`, `LlmStoreEmbeddingsTask`, `LlmSearchEmbeddingsTask`, `GenerateImageTask`, `GenerateAudioTask`, `GetDocumentTask`, `ListMcpToolsTask`, `CallMcpToolTask`
 
-### Fixed
-
-- `SchedulerResourceApi#pause_schedule` / `#resume_schedule` now work against both Conductor server families. The client sends `PUT` first and falls back to `GET` on a `405` -- and only on a `405`. OSS Conductor maps these two per-schedule routes `@PutMapping`-only, so the previous `GET`-only calls failed there outright; Orkes Conductor accepts both verbs as of the dual `@RequestMapping(method = {GET, PUT})` added in 2026-07, and is `GET`-only in deployments older than that. `pause_all_schedules` / `resume_all_schedules` remain `GET`, which is how both families map those admin endpoints. Matches the python-sdk, go-sdk, javascript-sdk, csharp-sdk and rust-sdk clients; `spec/conductor/http/api/scheduler_resource_api_spec.rb` pins the whole contract
-- `Conductor::AuthenticationSettings` is no longer referenced as `Conductor::Configuration::AuthenticationSettings`, which raised `NameError: uninitialized constant`. The class has always been defined directly under `Conductor`. Fixed in `RactorTaskRunner`'s in-Ractor configuration rebuild (where it was a live failure) and in the `Conductor` / `OrkesClients` doc comments (where it told users to write the broken form)
-
 ### Migration Guide
 
 **Before (old DSL):**
@@ -77,26 +58,6 @@ end
 ## [Unreleased] - 2026-02-09
 
 ### Added
-
-- **Agents** (`require 'conductor/agents'`) - Ruby port of the Python SDK's agents package, same `agentConfig` on the wire
-  - `tool def` DSL: types from keyword defaults, secrets from `secret('...')` literals, `describe`, `requires_approval`, module scoping, RubyLLM::Tool adapter
-  - `Agent` with `add_tool`, `add_agent`, `hands_off_to`, `redact`, `stop_when`, `stop_after`, `on_approval`, `>>`; guardrails, termination conditions, handoffs, callbacks, memory, prompt templates
-  - `ConfigSerializer` verified against the Python SDK's 19 golden configs and `agent-schema.json`
-  - `AgentRuntime`: `call_sync`, `call_async` (SSE streaming with reconnect, polling fallback), `deploy`, `serve`; `Execution`, `ApprovalRequest`
-  - Tool workers registered with Python's task definition defaults; `<agent>_termination`, custom guardrail and callback workers
-  - `AgentResourceApi` / `AgentClient` for `/api/agent/*`, `OrkesClients#get_agent_client`
-  - `Task#runtime_metadata` (wire-only secret values), `TaskDef#runtime_metadata` (declared secret names), `TaskDef#enforce_schema`
-  - `TaskResourceApi#update_task_v2`; `Worker` option `lease_extend_enabled`
-  - Agent examples run against Conductor with shared LLM recordings and playback validation
-
-### Changed
-
-- `Configuration` caches the auth token per instance (two configurations no longer share a token); the class-level `Configuration.auth_token` accessors remain as a deprecated shim
-- `TaskRunner` posts task results to `POST /tasks/update-v2` and falls back to `POST /tasks` once when the server does not serve it (Python SDK parity)
-
-### Removed
-
-- Unused `vcr` development dependency (`json_schemer` added for agent contract tests)
 
 - **Core Infrastructure**
   - Configuration with environment variable support

@@ -123,8 +123,8 @@ module Conductor
 
       # Give the agent a tool.
       # @param tool [Symbol, String, ToolDef, Module, Class, Agent] a tool name defined with
-      #   `tool def`, a ToolDef, a module that `extend Conductor::Agents::Tools`, a RubyLLM::Tool
-      #   class, or another Agent (wrapped as an agent tool)
+      #   `tool def`, a ToolDef, a module that `extend Conductor::Agents::Tools`, or another
+      #   Agent (wrapped as an agent tool)
       # @param credentials [Array<String>, nil] secret names when the scanner cannot see them
       # @return [self]
       def add_tool(tool, credentials: nil)
@@ -312,13 +312,9 @@ module Conductor
           [Tools.lookup(tool) || raise(ConfigurationError, "no tool named #{tool.inspect}; define it with `tool def #{tool}(...)` first")]
         when Agent then [ToolDef.agent(tool)]
         when Module
-          if tool.respond_to?(:tool_defs)
-            tool.tool_defs
-          elsif Tools::RubyLlmAdapter.ruby_llm_tool?(tool)
-            [Tools::RubyLlmAdapter.to_tool_def(tool)]
-          else
-            raise ConfigurationError, "#{tool} has no tools; use `extend Conductor::Agents::Tools` and `tool def ...`"
-          end
+          raise ConfigurationError, "#{tool} has no tools; use `extend Conductor::Agents::Tools` and `tool def ...`" unless tool.respond_to?(:tool_defs)
+
+          tool.tool_defs
         else
           raise ConfigurationError, "cannot use #{tool.inspect} as a tool"
         end

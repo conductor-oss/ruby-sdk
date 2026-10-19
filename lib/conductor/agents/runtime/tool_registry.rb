@@ -66,7 +66,7 @@ module Conductor
 
             workers << build_system_worker(g.name, SystemWorkers.guardrail(g, logger: @logger), domain, a) if wanted?(required, g.name)
           end
-          if a.router.respond_to?(:call)
+          if !a.router.is_a?(Tool) && a.router.respond_to?(:call)
             name = "#{a.name}_router_fn"
             workers << build_system_worker(name, SystemWorkers.router(a.router, a.agents.map(&:name), logger: @logger), domain, a) if wanted?(required, name)
           end

@@ -108,7 +108,7 @@ module Conductor
         end
 
         def apply_switch_fields(wf_task)
-          wf_task.evaluator_type = 'value-param'
+          wf_task.evaluator_type = @options[:evaluator_type] || 'value-param'
           wf_task.expression = @options[:expression]
 
           # Convert decision_cases from TaskRef arrays to WorkflowTask arrays

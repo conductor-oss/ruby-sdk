@@ -22,11 +22,12 @@ module Conductor
       RAG_SEARCH = 'rag_search'
       PULL_WORKFLOW_MESSAGES = 'pull_workflow_messages'
       CLI = 'cli'
+      DECISION = 'decision'
 
       MEDIA = [GENERATE_IMAGE, GENERATE_AUDIO, GENERATE_VIDEO, GENERATE_PDF].freeze
       RAG = [RAG_INDEX, RAG_SEARCH].freeze
       LOCAL = [WORKER, CLI].freeze
-      ALL = [WORKER, HTTP, API, MCP, HUMAN, AGENT_TOOL, *MEDIA, *RAG, PULL_WORKFLOW_MESSAGES, CLI].freeze
+      ALL = [WORKER, HTTP, API, MCP, HUMAN, AGENT_TOOL, *MEDIA, *RAG, PULL_WORKFLOW_MESSAGES, CLI, DECISION].freeze
 
       def self.valid?(type)
         ALL.include?(type.to_s)

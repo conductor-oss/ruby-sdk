@@ -355,6 +355,9 @@ The `examples/` directory contains comprehensive examples:
 | [`dynamic_workflow.rb`](examples/dynamic_workflow.rb) | Create and execute workflows at runtime |
 | [`workflow_ops.rb`](examples/workflow_ops.rb) | Lifecycle operations: pause, resume, restart, retry |
 | [`agentic_workflows/`](examples/agentic_workflows/) | LLM chat and AI workflow examples |
+| [`ai_decision_routing.rb`](examples/agentic_workflows/ai_decision_routing.rb) | Route billing or technical requests with a synchronous decision SWITCH |
+| [`decision_router.rb`](examples/agents/decision_router.rb) | Print a decision router configuration; add `--run` to select and run a chat agent |
+| [`decision_tool.rb`](examples/agents/decision_tool.rb) | Run a chat agent that calls a server-side decision tool |
 
 Run examples:
 

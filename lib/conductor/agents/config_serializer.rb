@@ -74,6 +74,7 @@ module Conductor
 
       def serialize_extras(agent)
         extras = {}
+        extras['synthesize'] = false unless agent.synthesize
         extras['metadata'] = agent.metadata if agent.metadata && !agent.metadata.empty?
         callbacks = agent.callback_positions.map { |p| { 'position' => p, 'taskName' => "#{agent.name}_#{p}" } }
         extras['callbacks'] = callbacks unless callbacks.empty?
@@ -84,7 +85,7 @@ module Conductor
 
       def effective_model(agent)
         return agent.model if agent.model && !agent.model.to_s.empty?
-        return nil if agent.external
+        return nil if agent.external || (agent.strategy == Strategy::ROUTER && agent.router.is_a?(Tool) && agent.router.tool_type == ToolType::DECISION)
 
         inherited = (agent.agents + [agent.planner, agent.fallback].compact).map { |a| effective_model(a) }.compact.first
         return inherited if inherited
@@ -212,6 +213,16 @@ module Conductor
 
       def serialize_router(agent)
         router = agent.router
+        if router.is_a?(Tool)
+          raise ConfigurationError, 'Only a decision Tool can be used as a router' unless router.tool_type == ToolType::DECISION
+
+          config = router.config.transform_keys(&:to_s)
+          raise ConfigurationError, "Decision router tool config requires 'model'" if config['model'].nil? || config['model'].empty?
+          raise ConfigurationError, "Decision router tool config requires 'questions'" if config['questions'].nil? || config['questions'].empty?
+
+          return { 'name' => router.name, 'kind' => 'decision', 'model' => config['model'],
+                   'questions' => config['questions'], 'provider' => config['provider'] }.compact
+        end
         return serialize_agent(router) if router.is_a?(Agent)
         return { 'taskName' => "#{agent.name}_router_fn" } if router.respond_to?(:call)
 

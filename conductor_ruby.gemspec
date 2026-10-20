@@ -30,12 +30,12 @@ Gem::Specification.new do |spec|
   spec.require_paths = ['lib']
 
   # HTTP client with HTTP/2 support
-  spec.add_dependency 'faraday', '~> 2.0'
+  spec.add_dependency 'faraday', '>= 2.14.3', '< 3.0'
   spec.add_dependency 'faraday-net_http_persistent', '~> 2.0'
   spec.add_dependency 'faraday-retry', '~> 2.0'
 
   # Concurrency primitives
-  spec.add_dependency 'concurrent-ruby', '~> 1.2'
+  spec.add_dependency 'concurrent-ruby', '>= 1.3.7', '< 2.0'
 
   # JSON handling
   spec.add_dependency 'json', '>= 2.0'

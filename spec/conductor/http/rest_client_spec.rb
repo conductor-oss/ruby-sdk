@@ -19,7 +19,10 @@ RSpec.describe Conductor::Http::RestClient do
 
   let(:retry_options) do
     handler = client.connection.builder.handlers.find { |h| h.klass == Faraday::Retry::Middleware }
-    handler.instance_variable_get(:@args).first
+    # faraday >= 2.9 stores keyword middleware options in @kwargs; older faraday
+    # passed them as a single positional options hash in @args.first.
+    kwargs = handler.instance_variable_get(:@kwargs)
+    kwargs.nil? || kwargs.empty? ? handler.instance_variable_get(:@args).first : kwargs
   end
 
   describe 'retry configuration' do
